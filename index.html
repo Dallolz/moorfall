@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MOORFALL III — Les Terres de Cendrefiel</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -1003,7 +1004,21 @@ const RIG_CLASS={
    'Ranger_Head_Hood'],hairs:[],tint:{Ranger_Head_Hood:0x9a8ac0,Peasant_Body:0xa89ec4}},
  ossuaire:{g:'m',h:1.85,pieces:['Peasant_Body','Peasant_Arms','Peasant_Legs','Peasant_Feet',
    'Ranger_Head_Hood'],hairs:[['Hair_Beard',0xb8b09a]],tint:{Ranger_Head_Hood:0xa8ae96,Peasant_Body:0xa8ae96},
-   atk:{slash:['Melee_Hook','Punch_Cross']}}};
+   atk:{slash:['Melee_Hook','Punch_Cross']}},
+ voleur:{g:'m',h:1.82,pieces:['Ranger_Body','Ranger_Arms','Ranger_Legs','Ranger_Feet',
+   'Ranger_Head_Hood','Ranger_Body_Belt_1'],hairs:[],
+   tint:{Ranger_Body:0x8a95a8,Ranger_Head_Hood:0x707a8c,Ranger_Legs:0x8a95a8,Ranger_Arms:0x9aa2b0},
+   atk:{slash:['Sword_Regular_A','Sword_Regular_B','Melee_Hook']}}};
+/* armes 3D (Modular Weapons Pack) par classe et style — [modèle, échelle]
+   pas d'entrée -> armes procédurales (arbalètes, fouets, bâtons, os) */
+const RIG_WEAPONS={
+ ecorcheur:{w1:{r:['Axe',0.2]},w2:{r:['Axe_Small',0.2],l:['Axe_Small',0.2]},w3:{r:['Axe_Double',0.2]}},
+ briseroc:{w1:{r:['Hammer_Small',0.22],l:['Shield_Round',0.28]},w2:{r:['Hammer_Double',0.22]},
+   w3:{r:['Hammer_Small',0.22],l:['Hammer_Small',0.22]}},
+ ossuaire:{w1:{r:['Scythe',0.26]}},
+ voleur:{w1:{r:['Dagger',0.15],l:['Dagger_2',0.15]},w3:{r:['Claymore',0.17],l:['Dagger',0.15]}}};
+['Axe','Axe_Double','Axe_Small','Claymore','Dagger','Dagger_2','Hammer_Double','Hammer_Small',
+ 'Scythe','Shield_Round'].forEach(n=>{RIG_FILES['W_'+n]=_MFA+'weapons/'+n+'.glb';});
 const RIG_NPC_F=new Set(['maud','ivane','berthe','noyee','ashka']);
 const RIG_ENEMY_F=new Set(['rodeuse','veuve','mere']);
 const RIG_ENEMY_ROBED=new Set(['moine','choeur','porteur','berger','pendeur']);
@@ -1078,9 +1093,14 @@ function attachRig(mesh,key,opts){
   const sc=(opts&&opts.scale)||1;
   const sets=new Set(def.pieces.map(p=>p.split('_')[0]));
   if(key.slice(0,2)==='c:'){sets.add('Peasant');sets.add('Ranger');} // le loot peut tout demander
+  const cl=key.slice(0,2)==='c:'?key.slice(2):null;
+  const wstyle=cl?(mesh===player.mesh?G.wstyle:selStyle):null;
+  const wspec=cl&&RIG_WEAPONS[cl]?RIG_WEAPONS[cl][wstyle]:null;
+  const wfiles=wspec?[wspec.r,wspec.l].filter(Boolean):[];
   const wants=[_rigLoad(RIG_FILES[def.g]),_rigClips()];
   sets.forEach(s=>wants.push(_rigLoad(RIG_FILES[s+'_'+def.g])));
   def.hairs.forEach(h=>wants.push(_rigLoad(RIG_FILES[h[0]])));
+  wfiles.forEach(w=>wants.push(_rigLoad(RIG_FILES['W_'+w[0]])));
   Promise.all(wants).then(([charG,clips,...rest])=>{
     if(!mesh.parent&&mesh!==player.mesh)return;          // entité déjà retirée
     if(mesh.userData.rig)return;                         // déjà greffé
@@ -1104,7 +1124,7 @@ function attachRig(mesh,key,opts){
         if(!pieces[k])pieces[k]=[];
         const b=_rigBind(o,bones,root);mats.push(b.material);pieces[k].push(b);}}));
     const hairs={};
-    rest.slice(sets.size).forEach((g,i)=>g.scene.traverse(o=>{
+    rest.slice(sets.size,sets.size+def.hairs.length).forEach((g,i)=>g.scene.traverse(o=>{
       if(o.isSkinnedMesh){const b=_rigBind(o,bones,root);
         b.material=new THREE.MeshStandardMaterial({color:def.hairs[i][1],roughness:0.85,skinning:true});
         mats.push(b.material);hairs[def.hairs[i][0]]=b;}}));
@@ -1120,14 +1140,28 @@ function attachRig(mesh,key,opts){
       if(rig.oneshot&&ev.action===rig.oneshot){rig.oneshot=null;rig.cur=null;}});
     mesh.userData.rig=rig;_rigs.add(rig);RIG_DEBUG.rigs++;
     rigSetLook(rig,def.pieces,def.tint||{},def.hairs);
-    // 5) armes de classe procédurales dans les vraies mains (bones hand_r/hand_l)
-    if(key.slice(0,2)==='c:'&&bones.hand_r&&bones.hand_l){
-      const cl=key.slice(2);
+    // 5) armes dans les vraies mains (bones hand_r/hand_l) :
+    //    modèles 3D du Modular Weapons Pack, sinon armes procédurales de classe
+    if(cl&&bones.hand_r&&bones.hand_l){
       const mkHand=bone=>{const w=new THREE.Group();
         w.rotation.set(Math.PI,0,0);bone.add(w);return w;};
       rig.handR=mkHand(bones.hand_r);rig.handL=mkHand(bones.hand_l);
-      attachWeapons(mesh,cl,wsDef(cl,mesh===player.mesh?G.wstyle:selStyle),
-        null,rig.handR,rig.handL);
+      rig.weaponMats=[];
+      if(wspec){
+        const wg=rest.slice(sets.size+def.hairs.length);
+        const addW=(g,spec,wrap)=>{
+          const w=g.scene.clone(true);
+          w.scale.setScalar(spec[1]);
+          w.rotation.x=Math.PI;                          // modèles +Y : pointe vers le bas au repos
+          w.traverse(o=>{if(o.isMesh){o.castShadow=true;
+            o.material=o.material.clone();mats.push(o.material);rig.weaponMats.push(o.material);}});
+          wrap.add(w);return w;
+        };
+        mesh.userData.weapon=addW(wg[0],wspec.r,rig.handR);
+        if(wspec.l)addW(wg[1],wspec.l,rig.handL);
+      }else{
+        attachWeapons(mesh,cl,wsDef(cl,wstyle),null,rig.handR,rig.handL);
+      }
     }
     if(mesh===player.mesh)majApparence();
     _rigBase(rig,'idle',1);
@@ -1170,6 +1204,9 @@ function rigPlayerLook(rig){
   if(Object.values(eq).some(it=>it&&it.rar===4)&&rig.bones.spine_03){
     const l=new THREE.PointLight(0xe8963a,0.5,4);
     l.position.set(0,0.2,0.35);rig.bones.spine_03.add(l);rig.gear.push(l);}
+  if(rig.weaponMats&&rig.weaponMats.length){ // lueur de rareté sur l'arme
+    const glow=[0,0x0a2008,0x0a1830,0x241040,0x553008][eq.arme?eq.arme.rar:0]||0;
+    rig.weaponMats.forEach(m=>{if(m.emissive){m.emissive.setHex(glow);m.userData.baseEmi=glow;}});}
 }
 function _rigBase(rig,name,ts){
   const clip=rig.base[name]||rig.base.idle;if(!clip)return;
@@ -1209,7 +1246,7 @@ function rigRevive(mesh){
 function rigFlash(mesh,on){
   const rig=mesh&&mesh.userData.rig;if(!rig)return;
   if(rig.flash===+on)return;rig.flash=+on;
-  rig.mats.forEach(m=>{if(m.emissive)m.emissive.setHex(on?0x661414:0x000000);});
+  rig.mats.forEach(m=>{if(m.emissive)m.emissive.setHex(on?0x661414:(m.userData.baseEmi||0x000000));});
 }
 /* pilotage : animeHumanoide déclare l'état voulu, le mixer avance 1×/frame */
 function rigSet(rig,speed,attack){
