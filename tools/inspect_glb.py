@@ -8,6 +8,9 @@ from pathlib import Path
 
 
 def read_gltf_json(path):
+    if str(path).endswith('.gltf'):
+        with open(path) as f:
+            return json.load(f)
     with open(path, 'rb') as f:
         magic, _version, _length = struct.unpack('<III', f.read(12))
         if magic != 0x46546C67:
@@ -78,7 +81,7 @@ if __name__ == '__main__':
     targets = []
     for arg in sys.argv[1:]:
         p = Path(arg)
-        targets += sorted(p.rglob('*.glb')) if p.is_dir() else [p]
+        targets += sorted(p.rglob('*.gl[bt]*')) if p.is_dir() else [p]
     if not targets:
         sys.exit('usage: inspect_glb.py <glb|dossier> [...]')
     for t in targets:

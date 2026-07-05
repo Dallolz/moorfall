@@ -932,7 +932,7 @@ let capeLight=null;
 function npc(id,nom,role,x,z,peau,habit){
   const my=terrainH(x,z);
   const m=humanoide({peau,habit});
-  attachRig(m,'npc:'+id);
+  attachRig(m,'villager');
   m.position.set(x,my,z);m.rotation.y=rand(0,6.28);scene.add(m);
   const marker=new THREE.Mesh(new THREE.ConeGeometry(0.12,0.4,4),new THREE.MeshBasicMaterial({color:0xd8c26a}));
   marker.position.set(x,my+2.5,z);marker.rotation.x=Math.PI;scene.add(marker);
@@ -946,96 +946,52 @@ function citoyen(x,z){
 }
 
 /* ==================================================================
-   VISUELS RIGGÉS — écosystème Quaternius « Universal Rig » (CC0)
-   Un squelette partagé (65 bones, style Unreal : pelvis, spine_01…)
-   par entité ; les pièces de tenue (SkinnedMesh) sont RE-LIÉES sur ce
-   squelette par nom de bone → tenues modulaires, loot visible par slot.
-   Les clips viennent de bibliothèques séparées (UAL1+UAL2) et ciblent
-   les bones par nom — locomotion zombie pour les Creux, épée, sorts.
-   Fallback : sans réseau ni loaders, personnages procéduraux d'origine.
-   Désactivable via ?norig
-   Sources (CC0 1.0, Quaternius — quaternius.com) servies depuis
-   github.com/Dallolz/moorfall-assets :
-   - Universal Base Characters (corps Superhero M/F)
-   - Modular Character Outfits Fantasy (Peasant + Ranger, par pièce)
-   - Universal Animation Library 1 & 2 (86 clips partagés)
+   VISUELS RIGGÉS — pipeline inspiré de World of ClaudeCraft (CC0)
+   GLB KayKit chargés en runtime, un clone SkeletonUtils + un
+   AnimationMixer par entité, machine à états de clips.
+   Fallback : si le réseau ou les loaders manquent, le jeu garde
+   ses personnages procéduraux d'origine. Désactivable via ?norig
+   Sources (CC0 1.0, Kay Lousberg) :
+   - github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0
+   - github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0
    ================================================================== */
 const RIG_ON=(typeof THREE.GLTFLoader==='function')&&!!THREE.SkeletonUtils
   &&typeof THREE.SkeletonUtils.clone==='function'&&!/norig/.test(location.search);
 const RIG_DEBUG={on:RIG_ON,loaded:[],failed:[],rigs:0};window.RIG_DEBUG=RIG_DEBUG;
 if(!RIG_ON)console.warn('[RIG] désactivé — GLTFLoader:',typeof THREE.GLTFLoader,
   '| SkeletonUtils:',typeof THREE.SkeletonUtils,'| ?norig:',/norig/.test(location.search));
-else console.info('[RIG] actif — chargement des modèles Quaternius (CC0) en arrière-plan…');
-const _MFA='https://raw.githubusercontent.com/Dallolz/moorfall-assets/main/';
-const RIG_FILES={
- ual1:_MFA+'animations/UAL1.glb',ual2:_MFA+'animations/UAL2.glb',
- m:_MFA+'characters/Superhero_Male.glb',f:_MFA+'characters/Superhero_Female.glb',
- Peasant_m:_MFA+'outfits/Male_Peasant.glb',Peasant_f:_MFA+'outfits/Female_Peasant.glb',
- Ranger_m:_MFA+'outfits/Male_Ranger.glb',Ranger_f:_MFA+'outfits/Female_Ranger.glb',
- Hair_Beard:_MFA+'hair/Hair_Beard.glb',Hair_Buns:_MFA+'hair/Hair_Buns.glb',
- Hair_Buzzed:_MFA+'hair/Hair_Buzzed.glb',Hair_BuzzedFemale:_MFA+'hair/Hair_BuzzedFemale.glb',
- Hair_Long:_MFA+'hair/Hair_Long.glb',Hair_SimpleParted:_MFA+'hair/Hair_SimpleParted.glb'};
-/* clips one-shot par intention de combat (résolus dans UAL1+UAL2) */
-const RIG_ATK={slash:['Sword_Attack','Melee_Hook'],smash:['Sword_Attack'],
- sweep:['Sword_Regular_C'],spin:['Sword_Regular_Combo'],
- cast:['Spell_Simple_Shoot'],summon:['Spell_Simple_Enter'],shoot:['Pistol_Shoot'],
- roll:['Roll'],eatk:['Zombie_Scratch','Melee_Hook','Punch_Cross'],eshoot:['Spell_Simple_Shoot']};
-/* jeux de locomotion : humains, morts qui marchent, bêtes voûtées */
-const RIG_LOCO={
- human:{idle:'Idle_Loop',walk:'Walk_Loop',run:'Jog_Fwd_Loop',sit:'Sitting_Idle_Loop',wTS:1.6,rTS:4.5},
- zombie:{idle:'Zombie_Idle_Loop',walk:'Zombie_Walk_Fwd_Loop',run:'Zombie_Walk_Fwd_Loop',wTS:1.1,rTS:2.0},
- crouch:{idle:'Crouch_Idle_Loop',walk:'Crouch_Fwd_Loop',run:'Crouch_Fwd_Loop',wTS:1.3,rTS:2.4}};
-/* pièces canoniques (sans préfixe de genre) — ordre : préfixes longs d'abord */
-const RIG_PIECES=['Ranger_Acc_Pauldron','Ranger_Arms_Bracer','Ranger_Body_Belt_1',
- 'Ranger_Body_Belt_2','Ranger_Head_Hood','Ranger_Arms','Ranger_Body','Ranger_Feet',
- 'Ranger_Legs','Peasant_Arms','Peasant_Body','Peasant_Feet','Peasant_Legs'];
-/* silhouettes de classe : corps + pièces + cheveux (le loot remplace ces défauts) */
-const RIG_CLASS={
- ecorcheur:{g:'m',h:1.92,pieces:['Peasant_Body','Peasant_Arms','Peasant_Legs','Peasant_Feet'],
-   hairs:[['Hair_Buzzed',0x3a2c1c],['Hair_Beard',0x3a2c1c]]},
- briseroc:{g:'m',h:1.95,pieces:['Ranger_Body','Ranger_Arms','Ranger_Legs','Ranger_Feet',
-   'Ranger_Body_Belt_1','Ranger_Acc_Pauldron'],hairs:[['Hair_Buzzed',0x55504a]]},
- arbaletriere:{g:'f',h:1.8,pieces:['Ranger_Body','Ranger_Arms','Ranger_Legs','Ranger_Feet',
-   'Ranger_Head_Hood','Ranger_Arms_Bracer'],hairs:[]},
- flagellant:{g:'m',h:1.85,pieces:['Peasant_Body','Peasant_Arms','Peasant_Legs','Peasant_Feet',
-   'Ranger_Head_Hood'],hairs:[],tint:{Ranger_Head_Hood:0x9a6a6e}},
- cendremage:{g:'f',h:1.8,pieces:['Peasant_Body','Peasant_Arms','Peasant_Legs','Peasant_Feet',
-   'Ranger_Head_Hood'],hairs:[],tint:{Ranger_Head_Hood:0x9a8ac0,Peasant_Body:0xa89ec4}},
- ossuaire:{g:'m',h:1.85,pieces:['Peasant_Body','Peasant_Arms','Peasant_Legs','Peasant_Feet',
-   'Ranger_Head_Hood'],hairs:[['Hair_Beard',0xb8b09a]],tint:{Ranger_Head_Hood:0xa8ae96,Peasant_Body:0xa8ae96},
-   atk:{slash:['Melee_Hook','Punch_Cross']}}};
-const RIG_NPC_F=new Set(['maud','ivane','berthe','noyee','ashka']);
-const RIG_ENEMY_F=new Set(['rodeuse','veuve','mere']);
-const RIG_ENEMY_ROBED=new Set(['moine','choeur','porteur','berger','pendeur']);
-const _HAIRS_M=[['Hair_Buzzed',0x3a2c1c],['Hair_SimpleParted',0x4a3826],['Hair_Beard',0x3a2c1c],['Hair_SimpleParted',0x66605a]];
-const _HAIRS_F=[['Hair_Long',0x3a2c1c],['Hair_Buns',0x4a3826],['Hair_BuzzedFemale',0x2c241c],['Hair_Long',0x8a7a5a]];
-const _CLOTH_TINTS=[0xb0a890,0x9aa88e,0x8e9aa8,0xb09a8a,0xa8a8a0,0x9a8ea0];
-function _lighten(hex,f){return new THREE.Color(hex).lerp(new THREE.Color(0xffffff),f).getHex();}
-function _rigDefOf(key){
-  if(key.slice(0,2)==='c:')return RIG_CLASS[key.slice(2)];
-  if(key.slice(0,2)==='e:'){
-    const t=key.slice(2),d=ENEMY_DEF[t]||{};
-    const def={g:RIG_ENEMY_F.has(t)?'f':'m',h:1.85,skin:d.peau,
-      loco:d.beast?'crouch':'zombie',pieces:[],hairs:[]};
-    if(RIG_ENEMY_ROBED.has(t)){
-      def.pieces=['Peasant_Body','Peasant_Arms','Peasant_Legs'];
-      const hc=_lighten(d.habit||0x3a3a30,0.35);
-      def.tint={Peasant_Body:hc,Peasant_Arms:hc,Peasant_Legs:hc};}
-    return def;}
-  if(key==='villager'){
-    const g=Math.random()<0.45?'f':'m';
-    return{g,h:1.72+rand(-0.04,0.06),pieces:['Peasant_Body','Peasant_Arms','Peasant_Legs','Peasant_Feet'],
-      hairs:[(g==='f'?_HAIRS_F:_HAIRS_M)[irand(0,3)]],
-      tint:{Peasant_Body:_CLOTH_TINTS[irand(0,_CLOTH_TINTS.length-1)]}};}
-  if(key.slice(0,4)==='npc:'){
-    const id=key.slice(4),g=RIG_NPC_F.has(id)?'f':'m';
-    return{g,h:1.76,pieces:['Peasant_Body','Peasant_Arms','Peasant_Legs','Peasant_Feet'],
-      hairs:[(g==='f'?_HAIRS_F:_HAIRS_M)[id.length%4]]};}
-  if(key==='servitor')return{g:'m',h:1.7,skin:0xcfc7ae,loco:'zombie',pieces:[],hairs:[]};
-  return null;
-}
+else console.info('[RIG] actif — chargement des modèles KayKit (CC0) en arrière-plan…');
+const _ADV='https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf/';
+const _SKL='https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0/main/addons/kaykit_character_pack_skeletons/Characters/gltf/';
+/* clips communs à tous les rigs KayKit (75 clips partagés par modèle) */
+const RIG_ATK={slash:['1H_Melee_Attack_Slice_Diagonal','1H_Melee_Attack_Chop'],
+  smash:['2H_Melee_Attack_Chop'],sweep:['2H_Melee_Attack_Slice'],spin:['2H_Melee_Attack_Spin'],
+  cast:['Spellcast_Shoot'],summon:['Spellcast_Raise'],
+  eatk:['1H_Melee_Attack_Slice_Diagonal','Unarmed_Melee_Attack_Punch_A','1H_Melee_Attack_Chop'],
+  eshoot:['Spellcast_Shoot']};
+/* manifest : clé -> asset + allowlist de nodes accessoires à GARDER
+   (les GLB KayKit livrent TOUS les accessoires visibles — piège n°1 du renderer WoC) */
+const RIG_VISUALS={
+ 'c:ecorcheur':{url:_ADV+'Barbarian.glb',h:1.85,show:['Barbarian_Cape','2H_Axe']},
+ 'c:briseroc':{url:_ADV+'Knight.glb',h:1.85,show:['Knight_Helmet','Knight_Cape','2H_Sword']},
+ 'c:arbaletriere':{url:_ADV+'Rogue_Hooded.glb',h:1.78,show:['Rogue_Cape','2H_Crossbow'],shoot:['2H_Ranged_Shoot']},
+ 'c:flagellant':{url:_ADV+'Rogue.glb',h:1.78,show:['Rogue_Cape','Knife','Knife_Offhand'],
+   atk:['Dualwield_Melee_Attack_Slice','Dualwield_Melee_Attack_Chop']},
+ 'c:cendremage':{url:_ADV+'Mage.glb',h:1.8,show:['Mage_Cape','2H_Staff'],shoot:['Spellcast_Shoot']},
+ 'c:ossuaire':{url:_ADV+'Mage.glb',h:1.8,show:['1H_Wand'],shoot:['Spellcast_Shoot']},
+ 'villager':{url:_ADV+'Rogue_Hooded.glb',h:1.72,show:[]},
+ 'servitor':{url:_SKL+'Skeleton_Minion.glb',h:1.7,skel:true},
+ 'sk_min':{url:_SKL+'Skeleton_Minion.glb',h:1.75,skel:true},
+ 'sk_rogue':{url:_SKL+'Skeleton_Rogue.glb',h:1.75,skel:true},
+ 'sk_mage':{url:_SKL+'Skeleton_Mage.glb',h:1.78,skel:true},
+ 'sk_war':{url:_SKL+'Skeleton_Warrior.glb',h:1.8,skel:true}};
+/* familles d'ennemis -> squelette (équivalent FAMILY_KEYS de WoC) */
+const RIG_FAMILY={creux:'sk_min',brule:'sk_min',gonfle:'sk_min',absent:'sk_min',
+ traqueur:'sk_rogue',rodeuse:'sk_rogue',echassier:'sk_rogue',pendu:'sk_rogue',sangsue:'sk_rogue',
+ hurleur:'sk_mage',moine:'sk_mage',choeur:'sk_mage',ossature:'sk_mage',porteur:'sk_mage',veuve:'sk_mage',mere:'sk_mage',
+ noyeur:'sk_war',colosse:'sk_war',berger:'sk_war',pendeur:'sk_war',roi:'sk_war'};
 const _rigCache={},_rigLoader=RIG_ON?new THREE.GLTFLoader():null,_rigs=new Set();
-function _rigLoad(url){ /* une seule requête/parse par URL */
+function _rigLoad(url){ /* une seule requête/parse par URL (règle du loader WoC) */
   if(_rigCache[url])return _rigCache[url];
   return _rigCache[url]=new Promise((res,rej)=>_rigLoader.load(url,g=>{
     const box=new THREE.Box3().setFromObject(g.scene);
@@ -1051,125 +1007,42 @@ function _rigLoad(url){ /* une seule requête/parse par URL */
     rej(err);
   }));
 }
-let _rigClipsP=null;
-function _rigClips(){ /* UAL1+UAL2 fusionnées : nom de clip -> AnimationClip */
-  return _rigClipsP||(_rigClipsP=Promise.all([_rigLoad(RIG_FILES.ual1),_rigLoad(RIG_FILES.ual2)])
-    .then(libs=>{const m={};libs.forEach(g=>g.animations.forEach(c=>{if(!m[c.name])m[c.name]=c;}));return m;}));
-}
-function _clipOf(clips,names){for(const n of names){if(clips[n])return clips[n];}return null;}
-/* nom canonique d'une pièce : Male_Ranger_Feet_Boots -> Ranger_Feet */
-function _pieceKey(name){
-  const n=name.replace(/^(Male|Female)_/,'').replace('Acc_Pauldrons','Acc_Pauldron')
-    .replace('Feet_Boots','Feet');
-  return RIG_PIECES.includes(n)?n:RIG_PIECES.find(k=>n.startsWith(k))||n;
-}
-/* re-lie un SkinnedMesh source sur le squelette de l'entité, par nom de bone */
-function _rigBind(src,bones,root){
-  const m=src.clone();
-  m.material=src.material.clone();
-  m.bind(new THREE.Skeleton(src.skeleton.bones.map(b=>bones[b.name]),src.skeleton.boneInverses),src.bindMatrix);
-  m.castShadow=true;m.frustumCulled=false;m.visible=false;
-  root.add(m);return m;
-}
+function _clipOf(anims,names){for(const n of names){const c=anims.find(a=>a.name===n);if(c)return c;}return null;}
 function attachRig(mesh,key,opts){
   if(!RIG_ON||!mesh)return;
-  const def=_rigDefOf(key);
+  const def=RIG_VISUALS[key.slice(0,2)==='e:'?(RIG_FAMILY[key.slice(2)]||'sk_min'):key];
   if(!def)return;
   const sc=(opts&&opts.scale)||1;
-  const sets=new Set(def.pieces.map(p=>p.split('_')[0]));
-  if(key.slice(0,2)==='c:'){sets.add('Peasant');sets.add('Ranger');} // le loot peut tout demander
-  const wants=[_rigLoad(RIG_FILES[def.g]),_rigClips()];
-  sets.forEach(s=>wants.push(_rigLoad(RIG_FILES[s+'_'+def.g])));
-  def.hairs.forEach(h=>wants.push(_rigLoad(RIG_FILES[h[0]])));
-  Promise.all(wants).then(([charG,clips,...rest])=>{
-    if(!mesh.parent&&mesh!==player.mesh)return;          // entité déjà retirée
-    if(mesh.userData.rig)return;                         // déjà greffé
-    // 1) masquer TOUTE la géométrie procédurale (boîtes, kit de classe, armes)
+  _rigLoad(def.url).then(g=>{
+    if(!mesh.parent&&mesh!==player.mesh)return;         // entité déjà retirée
+    if(mesh.userData.rig)return;                        // déjà greffé
+    // 1) masquer TOUTE la géométrie procédurale existante (boîtes, kit de classe, armes)
     mesh.traverse(o=>{if(o.isMesh&&!o.userData.keep)o.visible=false;});
-    // 2) corps de base cloné (squelette + skin propres, géométrie partagée)
-    const root=THREE.SkeletonUtils.clone(charG.scene);
-    const s=def.h/charG.userData.normH*sc;root.scale.setScalar(s);
-    const bones={};root.traverse(o=>{if(o.isBone)bones[o.name]=o;});
+    // 2) clone riggé (squelette + skin propres, géométrie/matériaux partagés)
+    const root=THREE.SkeletonUtils.clone(g.scene);
+    const s=def.h/g.userData.normH*sc;root.scale.setScalar(s);
     const mats=[];
-    root.traverse(o=>{if(o.isMesh){
-      o.castShadow=true;o.frustumCulled=false;           // SkinnedMesh + culling r128 = pops
-      o.material=o.material.clone();mats.push(o.material);
-      if(def.skin&&o.material.color)o.material.color.multiply(new THREE.Color(def.skin));}});
+    root.traverse(o=>{
+      if(o.isMesh){
+        o.castShadow=true;o.frustumCulled=false;        // SkinnedMesh + culling r128 = pops
+        if(!o.isSkinnedMesh&&def.show)o.visible=def.show.includes(o.name);
+        if(o.visible&&o.material){o.material=o.material.clone();mats.push(o.material);}
+      }});
     mesh.add(root);
-    // 3) pièces de tenue re-liées sur le squelette commun (montrées par rigSetLook)
-    const pieces={};
-    const outfits=rest.slice(0,sets.size);
-    outfits.forEach(g=>g.scene.traverse(o=>{
-      if(o.isSkinnedMesh){const k=_pieceKey(o.name);
-        if(!pieces[k])pieces[k]=[];
-        const b=_rigBind(o,bones,root);mats.push(b.material);pieces[k].push(b);}}));
-    const hairs={};
-    rest.slice(sets.size).forEach((g,i)=>g.scene.traverse(o=>{
-      if(o.isSkinnedMesh){const b=_rigBind(o,bones,root);
-        b.material=new THREE.MeshStandardMaterial({color:def.hairs[i][1],roughness:0.85,skinning:true});
-        mats.push(b.material);hairs[def.hairs[i][0]]=b;}}));
-    // 4) mixer + résolution des clips
-    const loco=RIG_LOCO[def.loco||'human'];
-    const mx=new THREE.AnimationMixer(root);
-    const base={idle:clips[loco.idle],walk:clips[loco.walk],run:clips[loco.run],
-      sit:loco.sit?clips[loco.sit]:null,death:clips.Death01};
-    const rig={mesh,root,mx,clips,def,loco,mats,base,pieces,hairs,gear:[],bones,
-      cur:null,oneshot:null,dead:false,flash:0};
+    // 3) mixer + résolution des clips
+    const mx=new THREE.AnimationMixer(root),A=g.animations;
+    const base={
+      idle:_clipOf(A,def.skel?['Idle_Combat','Idle']:['Idle']),
+      walk:_clipOf(A,['Walking_A']),run:_clipOf(A,['Running_A']),
+      sit:_clipOf(A,['Sit_Chair_Idle'])};
+    const rig={mesh,root,mx,A,def,mats,base,cur:null,oneshot:null,dead:false,
+      want:'idle',wantTs:1,flash:0};
     mx.addEventListener('finished',ev=>{
       if(rig.dead)return;
       if(rig.oneshot&&ev.action===rig.oneshot){rig.oneshot=null;rig.cur=null;}});
     mesh.userData.rig=rig;_rigs.add(rig);RIG_DEBUG.rigs++;
-    rigSetLook(rig,def.pieces,def.tint||{},def.hairs);
-    // 5) armes de classe procédurales dans les vraies mains (bones hand_r/hand_l)
-    if(key.slice(0,2)==='c:'&&bones.hand_r&&bones.hand_l){
-      const cl=key.slice(2);
-      const mkHand=bone=>{const w=new THREE.Group();
-        w.rotation.set(Math.PI,0,0);bone.add(w);return w;};
-      rig.handR=mkHand(bones.hand_r);rig.handL=mkHand(bones.hand_l);
-      attachWeapons(mesh,cl,wsDef(cl,mesh===player.mesh?G.wstyle:selStyle),
-        null,rig.handR,rig.handL);
-    }
-    if(mesh===player.mesh)majApparence();
     _rigBase(rig,'idle',1);
   }).catch(err=>{if(err&&err.stack)console.warn('[RIG] attachRig('+key+') :',err);});
-}
-/* applique une silhouette : pièces visibles + teintes + cheveux */
-function rigSetLook(rig,list,tints,hairList){
-  rig.gear.forEach(g=>{if(g.parent)g.parent.remove(g);});rig.gear=[];
-  Object.keys(rig.pieces).forEach(k=>rig.pieces[k].forEach(p=>{p.visible=false;}));
-  list.forEach(k=>{(rig.pieces[k]||[]).forEach(p=>{
-    p.visible=true;
-    p.material.color.setHex(tints[k]||0xffffff);});});
-  Object.keys(rig.hairs).forEach(h=>{rig.hairs[h].visible=false;});
-  (hairList||[]).forEach(h=>{if(rig.hairs[h[0]])rig.hairs[h[0]].visible=true;});
-}
-/* le loot du joueur devient sa tenue : Paysan -> Rôdeur + teintes de rareté */
-function rigPlayerLook(rig){
-  const L=RIG_CLASS[G.classe]||RIG_CLASS.ecorcheur,eq=G.equip;
-  const pieces=new Set(L.pieces),tints=Object.assign({},L.tint||{});
-  const swap=(parts,S)=>parts.forEach(p=>{pieces.delete('Peasant_'+p);pieces.delete('Ranger_'+p);pieces.add(S+'_'+p);});
-  const rset=r=>r>=2?'Ranger':'Peasant',rcol=r=>_lighten(RAR_COLORS[r],0.55);
-  if(eq.torse){const S=rset(eq.torse.rar);
-    swap(['Body','Arms'],S);
-    if(eq.torse.rar>=2)pieces.add('Ranger_Body_Belt_1');
-    if(eq.torse.rar>=3){pieces.add('Ranger_Acc_Pauldron');pieces.add('Ranger_Body_Belt_2');}
-    if(eq.torse.rar>=4)pieces.add('Ranger_Arms_Bracer');
-    if(eq.torse.rar>=1)tints[S+'_Body']=rcol(eq.torse.rar);}
-  if(eq.jambes){const S=rset(eq.jambes.rar);
-    swap(['Legs','Feet'],S);
-    if(eq.jambes.rar>=1)tints[S+'_Legs']=rcol(eq.jambes.rar);}
-  if(eq.tete){pieces.add('Ranger_Head_Hood');
-    if(eq.tete.rar>=1)tints.Ranger_Head_Hood=rcol(eq.tete.rar);}
-  const hairs=eq.tete?L.hairs.filter(h=>h[0]==='Hair_Beard'):L.hairs; // la capuche couvre
-  rigSetLook(rig,[...pieces],tints,hairs);
-  if(eq.amulette&&rig.bones.spine_03){
-    const m2=gearMat(eq.amulette.rar);m2.emissive.setHex(RAR_COLORS[eq.amulette.rar]);
-    m2.emissiveIntensity=0.55;
-    const a=new THREE.Mesh(new THREE.OctahedronGeometry(0.055),m2);
-    a.position.set(0,0.14,0.13);rig.bones.spine_03.add(a);rig.gear.push(a);}
-  if(Object.values(eq).some(it=>it&&it.rar===4)&&rig.bones.spine_03){
-    const l=new THREE.PointLight(0xe8963a,0.5,4);
-    l.position.set(0,0.2,0.35);rig.bones.spine_03.add(l);rig.gear.push(l);}
 }
 function _rigBase(rig,name,ts){
   const clip=rig.base[name]||rig.base.idle;if(!clip)return;
@@ -1182,8 +1055,8 @@ function _rigBase(rig,name,ts){
 }
 function rigOneShot(mesh,kind,dur){
   const rig=mesh&&mesh.userData.rig;if(!rig||rig.dead)return;
-  const names=(rig.def.atk&&rig.def.atk[kind])||RIG_ATK[kind]||RIG_ATK.slash;
-  const clip=_clipOf(rig.clips,Array.isArray(names)?names:[names]);if(!clip)return;
+  const names=(kind==='shoot'&&rig.def.shoot)||(kind==='eatk'&&rig.def.atk)||RIG_ATK[kind]||RIG_ATK.slash;
+  const clip=_clipOf(rig.A,Array.isArray(names)?names:[names]);if(!clip)return;
   const act=rig.mx.clipAction(clip);
   act.setLoop(THREE.LoopOnce);act.clampWhenFinished=true;
   act.timeScale=dur?Math.max(0.8,Math.min(2.4,clip.duration/dur)):1.3;
@@ -1194,7 +1067,7 @@ function rigOneShot(mesh,kind,dur){
 function rigDeath(mesh){
   const rig=mesh&&mesh.userData.rig;if(!rig||rig.dead)return;
   rig.dead=true;
-  const clip=rig.base.death;if(!clip)return;
+  const clip=_clipOf(rig.A,['Death_A','Death_B']);if(!clip)return;
   const act=rig.mx.clipAction(clip);
   act.setLoop(THREE.LoopOnce);act.clampWhenFinished=true;act.timeScale=1.4;
   act.reset().fadeIn(0.08).play();
@@ -1211,7 +1084,8 @@ function rigFlash(mesh,on){
   if(rig.flash===+on)return;rig.flash=+on;
   rig.mats.forEach(m=>{if(m.emissive)m.emissive.setHex(on?0x661414:0x000000);});
 }
-/* pilotage : animeHumanoide déclare l'état voulu, le mixer avance 1×/frame */
+/* pilotage : animeHumanoide (appelée déjà partout) ne fait que déclarer
+   l'état voulu ; le mixer est avancé une fois par frame par rigTickAll */
 function rigSet(rig,speed,attack){
   if(rig.dead)return;
   if(attack&&rig.lastAtk!==attack){rig.lastAtk=attack;
@@ -1219,8 +1093,8 @@ function rigSet(rig,speed,attack){
   if(!attack)rig.lastAtk=null;
   if(rig.oneshot)return;                                // laisser finir le one-shot
   if(speed<0.25)_rigBase(rig,'idle',1);
-  else if(speed<4.2)_rigBase(rig,'walk',Math.max(0.7,speed/rig.loco.wTS));
-  else _rigBase(rig,'run',Math.max(0.8,speed/rig.loco.rTS));
+  else if(speed<4.2)_rigBase(rig,'walk',Math.max(0.7,speed/2.2));
+  else _rigBase(rig,'run',Math.max(0.8,speed/6.5));
 }
 let _rigLastT=0;
 function rigTickAll(now){
@@ -1232,9 +1106,8 @@ function rigTickAll(now){
     r.mx.update(dt);
   });
 }
-/* préchargement non bloquant : bibliothèques + corps + tenues paysannes */
-if(RIG_ON){_rigClips().catch(()=>{});
-  ['m','f','Peasant_m','Peasant_f'].forEach(k=>_rigLoad(RIG_FILES[k]).catch(()=>{}));}
+/* préchargement (équivalent du boot-gate preload.ts de WoC, en non bloquant) */
+if(RIG_ON)['sk_min','sk_rogue','sk_mage','sk_war'].forEach(k=>_rigLoad(RIG_VISUALS[k].url).catch(()=>{}));
 
 /* ---------- quêtes ---------- */
 const QUESTS=[
@@ -3126,7 +2999,6 @@ function easeOut(x){return 1-Math.pow(1-x,2.4);}
 function majApparence(){
   playerGear.forEach(g=>{if(g.parent)g.parent.remove(g);});playerGear=[];
   if(!player.mesh)return;
-  if(player.mesh.userData.rig){rigPlayerLook(player.mesh.userData.rig);return;}
   const P=player.mesh.userData.parts;if(!P)return;
   const add=(parent,mesh)=>{parent.add(mesh);playerGear.push(mesh);};
   const eq=G.equip;
@@ -4085,7 +3957,6 @@ function esquive(){
     onde(player.pos.x,player.pos.z,CFX().light,0.7);
   }else{
     player.dash={t:0,dur:D.dist/30,dir:V3(dx,0,dz),m:0,f:0,evade:true,hit:new Set()};
-    rigOneShot(player.mesh,'roll',0.55);
     spawnPart(player.pos.x,0.6,player.pos.z,10,{col:CFX().light,spd:2,life:0.35});
   }
 }
@@ -4835,8 +4706,7 @@ requestAnimationFrame(tick);
     demarrer(null);save();
   };
 })();
-return{_dbg:()=>({G,player,enemies,npcs,previewSet,majApparence,demarrer,RIG_CLASS,prevMesh:()=>prevMesh}),
-  fermer:fermerPanneau,acheter,acheterMonture,accepterQuete,rendreQuete,respawn,
+return{fermer:fermerPanneau,acheter,acheterMonture,accepterQuete,rendreQuete,respawn,
   equipSpell,equipItem,vendreItem,choisirSpec,applyTemplate,saveTpl,applyTpl,
   talUp,talReset,choisirSub,
   sideAccept,sideDecline,sideDone,forger,retremper,ack,tip,tipHide,
