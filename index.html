@@ -18,8 +18,8 @@
 html,body{width:100%;height:100%;overflow:hidden;background:var(--nuit);color:var(--os);font-family:var(--f-ui)}
 canvas#scene{display:block;width:100%;height:100%;touch-action:none}
 #vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
-  background:radial-gradient(ellipse at 50% 45%, transparent 42%, rgba(0,0,0,.55) 100%)}
-#grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:6;opacity:.06;
+  background:radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0,0,0,.32) 100%)}
+#grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:6;opacity:.022;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   animation:grain .4s steps(4) infinite}
 @keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(-2%,1%)}50%{transform:translate(1%,-2%)}75%{transform:translate(-1%,-1%)}100%{transform:translate(2%,2%)}}
@@ -117,6 +117,8 @@ canvas#scene{display:block;width:100%;height:100%;touch-action:none}
 .ebar{position:fixed;z-index:9;width:46px;height:5px;background:#1a120e;border:1px solid #000;
   transform:translate(-50%,-100%);pointer-events:none}
 .ebar .f{height:100%;background:linear-gradient(90deg,#7e2418,#a03424)}
+.ebar .lv{position:absolute;left:calc(100% + 4px);top:-5px;font-size:10px;font-family:var(--f-ui);
+  text-shadow:0 1px 2px #000;line-height:1}
 .sac-grid{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
 .sac-grid>div{cursor:pointer}
 #tt{position:fixed;z-index:60;display:none;width:250px;background:var(--panneau);
@@ -155,6 +157,13 @@ canvas#scene{display:block;width:100%;height:100%;touch-action:none}
 .classe-carte .cd2{font-size:10.5px;color:var(--os-dim);line-height:1.35}
 .classe-carte .cp{font-size:10px;color:var(--laiton);margin-top:4px;font-style:italic}
 #titre .aide{margin-top:16px;font-size:11.5px;color:#5d5949;line-height:1.65;max-width:560px}
+#persos{margin:8px 0 4px;display:flex;flex-direction:column;gap:5px;max-height:168px;overflow-y:auto;min-width:min(380px,92vw)}
+.persos-titre{font-family:var(--f-display);font-style:italic;font-size:13px;color:var(--os-dim)}
+.perso-row{display:flex;align-items:center;gap:9px;background:#141209;border:1px solid #3a3226;
+  border-radius:3px;padding:5px 10px;text-align:left}
+.perso-row .pic{font-size:16px}
+.perso-row .pn{font-family:var(--f-display);font-size:15px}
+.perso-row .pd{flex:1;font-size:12px;color:var(--os-dim)}
 #mort{position:fixed;inset:0;z-index:40;background:rgba(6,4,3,.86);display:none;
   flex-direction:column;align-items:center;justify-content:center;text-align:center}
 #mort h1{font-family:var(--f-display);font-weight:400;font-size:46px;color:var(--sang-vif);letter-spacing:6px}
@@ -224,8 +233,8 @@ canvas#scene{display:block;width:100%;height:100%;touch-action:none}
   <canvas id="preview-cv" width="300" height="340"></canvas>
   <div id="classes"></div>
 <div id="wstyles" style="margin:6px 0 2px"></div>
+  <div id="persos"></div>
   <div>
-    <button class="btn" id="btn-continuer" style="display:none">Reprendre la veillée</button>
     <button class="btn" id="btn-nouveau">Commencer</button>
   </div>
   <div class="aide">
@@ -256,11 +265,24 @@ const enemies=[],corpses=[],allies=[],projectiles=[],decals=[],anneaux=[],dmgNum
 const spawners=[];
 const montureMeshes=[null,null,null,null];
 /* ---------- stockage ---------- */
-const store=(window.storage&&window.storage.get)?window.storage:(()=>{const mem={};return{
-  async get(k){if(!(k in mem))throw new Error('nokey');return{key:k,value:mem[k]};},
-  async set(k,v){mem[k]=v;return{key:k,value:v};},
-  async delete(k){delete mem[k];return{key:k,deleted:true};}};})();
-const SAVE_KEY='moorfall-save-v8';
+const store=(()=>{
+  try{
+    localStorage.setItem('mf-probe','1');localStorage.removeItem('mf-probe');
+    return{
+      async get(k){const v=localStorage.getItem(k);if(v===null)throw new Error('nokey');return{key:k,value:v};},
+      async set(k,v){localStorage.setItem(k,String(v));return{key:k,value:v};},
+      async delete(k){localStorage.removeItem(k);return{key:k,deleted:true};}};
+  }catch(e){}
+  if(window.storage&&window.storage.get)return window.storage;
+  const mem={};return{
+    async get(k){if(!(k in mem))throw new Error('nokey');return{key:k,value:mem[k]};},
+    async set(k,v){mem[k]=v;return{key:k,value:v};},
+    async delete(k){delete mem[k];return{key:k,deleted:true};}};
+})();
+const SAVE_KEY='moorfall-save-v8'; // ancien slot unique, migré vers la liste
+const LIST_KEY='moorfall-persos-v1';
+const charKey=id=>'moorfall-perso-'+id;
+const newCharId=()=>'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 /* ---------- classes ---------- */
 const CLASSES={
  ecorcheur:{nom:'Écorcheur',ic:'🪓',peau:0x8a7a62,habit:0x3a3226,arme:'hache',
@@ -311,7 +333,7 @@ function curSpec(){const l=SPECS[G.classe];return l.find(s=>s.id===G.spec)||{tg:
 function curSub(){if(!G.subclass)return{tg:{}};
   const l=SUBCLASSES[G.classe]||[];return l.find(s=>s.id===G.subclass)||{tg:{}};}
 /* ---------- état ---------- */
-const G={name:'Sans-nom',classe:'ecorcheur',lvl:1,xp:0,gold:15,potions:1,
+const G={charId:null,name:'Sans-nom',classe:'ecorcheur',lvl:1,xp:0,gold:15,potions:1,
   mounts:{t1:false,t2:false,t3:false},activeMount:0,flying:false,altitude:0,
   quests:{},kills:0,started:false,muted:false,playTime:0,camMode:'arpg',
   visited:{capitale:false},spec:null,subclass:null,slots:[null,null,null,null,null,null],cds:{},showHp:true,mats:{os:0,cendre:0,peau:0},wstyle:'w1',dashCharge:2,
@@ -319,6 +341,7 @@ const G={name:'Sans-nom',classe:'ecorcheur',lvl:1,xp:0,gold:15,potions:1,
   talents:{},secret:{lit:0,open:false,whisper:false,peuple:false,porteVue:false,key:false,nid:false}};
 const CL=()=>CLASSES[G.classe];
 const xpNext=l=>25+l*9;
+const XP_RATE=1.5;
 /* ---------- talents : aides ---------- */
 function talRank(id){return G.talents[id]||0;}
 function talSpentCol(col){let s=0;TALENTS[col].forEach(t=>s+=talRank(t.id));return s;}
@@ -581,27 +604,29 @@ el('mute').onclick=()=>{G.muted=!G.muted;el('mute').textContent=G.muted?'♪̸':
 const canvas=el('scene');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
+renderer.toneMapping=THREE.LinearToneMapping;
+renderer.toneMappingExposure=1.45;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x0b0e0b);
-scene.fog=new THREE.FogExp2(0x0f120e,0.013);
+scene.background=new THREE.Color(0x121711);
+scene.fog=new THREE.FogExp2(0x181d16,0.0095);
 const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,900);
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
 addEventListener('resize',resize);resize();
 
-const lune=new THREE.DirectionalLight(0xb8c4a8,0.5);
+const lune=new THREE.DirectionalLight(0xb8c4a8,0.75);
 lune.position.set(-30,50,-20);lune.castShadow=true;
 lune.shadow.mapSize.set(1024,1024);
 lune.shadow.camera.left=-45;lune.shadow.camera.right=45;lune.shadow.camera.top=45;lune.shadow.camera.bottom=-45;
 scene.add(lune);scene.add(lune.target);
-scene.add(new THREE.AmbientLight(0x1e241c,1.5));
-scene.add(new THREE.HemisphereLight(0x2a3328,0x0c0a08,0.6));
+scene.add(new THREE.AmbientLight(0x2c342a,2.1));
+scene.add(new THREE.HemisphereLight(0x3c4838,0x181510,1.2));
 
 function skyTexture(){
   const c=document.createElement('canvas');c.width=64;c.height=512;const x=c.getContext('2d');
   const gr=x.createLinearGradient(0,0,0,512);
-  gr.addColorStop(0,'#05070a');gr.addColorStop(0.45,'#0d1310');gr.addColorStop(0.75,'#16201a');gr.addColorStop(1,'#1c2620');
+  gr.addColorStop(0,'#0a0e14');gr.addColorStop(0.45,'#151d18');gr.addColorStop(0.75,'#223027');gr.addColorStop(1,'#2b3a30');
   x.fillStyle=gr;x.fillRect(0,0,64,512);
   for(let i=0;i<90;i++){x.fillStyle=`rgba(200,210,190,${rand(.15,.6)})`;
     x.fillRect(rand(0,64),rand(0,260),rand(.5,1.4),rand(.5,1.4));}
@@ -2232,7 +2257,7 @@ function ouvrirCarte(){
 /* ---------- progression ---------- */
 function gainXp(n){
   if(G.lvl>=70){majHud();return;}
-  G.xp+=n;
+  G.xp+=Math.round(n*XP_RATE);
   while(G.lvl<70&&G.xp>=xpNext(G.lvl)){
     G.xp-=xpNext(G.lvl);G.lvl++;
     player.hp=maxHp();sfx('lvl');
@@ -3636,7 +3661,7 @@ function crittersTick(dt,now){
 }
 /* ---------- cycle jour / nuit (8 minutes) ---------- */
 const sunAmb=new THREE.AmbientLight(0xcabf9e,0);scene.add(sunAmb);
-let LBASE=null,FOGC_N=new THREE.Color(0x181c16),FOGC_J=new THREE.Color(0x383d36),
+let LBASE=null,FOGC_N=new THREE.Color(0x222720),FOGC_J=new THREE.Color(0x474d44),
     LUNE_N=new THREE.Color(0x9aa4c8),LUNE_J=new THREE.Color(0xcabf9e);
 const wisps=[];
 [[150,60,0x9ab86a],[175,90,0x9ab86a],[-160,-40,0x8a94c8]].forEach(([x,z,c])=>{
@@ -3645,12 +3670,12 @@ const wisps=[];
 let luciole=0;
 function cycleTick(dt,now){
   if(LBASE===null)LBASE=lune.intensity;
-  const f=0.5-0.5*Math.cos((G.playTime%480)/480*Math.PI*2); // 0 minuit → 1 midi
-  sunAmb.intensity=0.14+0.24*f; // plancher nocturne : on doit toujours voir la lande
-  lune.intensity=LBASE*(1.02+0.42*f);
+  const f=0.5-0.5*Math.cos(((G.playTime+120)%480)/480*Math.PI*2); // 0 minuit → 1 midi (départ au matin)
+  sunAmb.intensity=0.44+0.30*f; // plancher nocturne : on doit toujours voir la lande
+  lune.intensity=LBASE*(1.15+0.4*f);
   lune.color.copy(LUNE_N).lerp(LUNE_J,f);
   if(scene.fog){scene.fog.color.copy(FOGC_N).lerp(FOGC_J,f);
-    if(scene.fog.density!==undefined)scene.fog.density=0.0115*(1-0.3*f);}
+    if(scene.fog.density!==undefined)scene.fog.density=0.0085*(1-0.35*f);}
   if(ciel&&ciel.material)ciel.material.color.setRGB(0.8+0.2*f,0.8+0.2*f,0.84+0.16*f);
   // feux follets qui respirent
   wisps.forEach(w=>{w.l.intensity=(0.5+0.5*Math.sin(now/700+w.ph))*(1-f*0.7)*1.1;
@@ -3666,12 +3691,17 @@ function cycleTick(dt,now){
 function ensureBar(e){
   if(e.bar)return;
   const d=document.createElement('div');d.className='ebar';
-  d.innerHTML='<div class="f"></div>';
+  d.innerHTML='<div class="f"></div><span class="lv"></span>';
   document.body.appendChild(d);
-  e.bar={el:d,f:d.firstChild};
+  e.bar={el:d,f:d.firstChild,lv:d.lastChild};
+}
+function lvlColor(elvl){
+  const d=elvl-G.lvl;
+  return d<=-8?'#6a675c':d>=5?'#c8503a':d>=2?'#c8863a':d<=-3?'#7da05c':'#cfc7ae';
 }
 function majBar(e,dLOD){
-  if(!G.showHp||e.hp>=e.maxHp||dLOD>36||e.def.boss){if(e.bar)e.bar.el.style.display='none';return;}
+  const vis=G.showHp&&!e.def.boss&&dLOD<=36&&(e.hp<e.maxHp||player.targetEnemy===e);
+  if(!vis){if(e.bar)e.bar.el.style.display='none';return;}
   ensureBar(e);
   const v=e.pos.clone().add(V3(0,2.15*e.def.scale,0)).project(camera);
   if(v.z>1){e.bar.el.style.display='none';return;}
@@ -3679,6 +3709,8 @@ function majBar(e,dLOD){
   e.bar.el.style.left=((v.x+1)/2*innerWidth)+'px';
   e.bar.el.style.top=((-v.y+1)/2*innerHeight)+'px';
   e.bar.f.style.width=(clamp(e.hp/e.maxHp,0,1)*100)+'%';
+  e.bar.lv.textContent=e.lvl;
+  e.bar.lv.style.color=lvlColor(e.lvl);
 }
 /* ---------- gisements : os anciens & cendre vive ---------- */
 const nodes=[];
@@ -4768,17 +4800,42 @@ function initMonde(){
 /* ---------- sauvegarde ---------- */
 async function save(){
   try{
-    const data={name:G.name,classe:G.classe,lvl:G.lvl,xp:G.xp,gold:G.gold,potions:G.potions,
+    if(!G.charId)G.charId=newCharId();
+    const data={id:G.charId,name:G.name,classe:G.classe,lvl:G.lvl,xp:G.xp,gold:G.gold,potions:G.potions,
       mounts:G.mounts,quests:G.quests,kills:G.kills,playTime:Math.round(G.playTime),
       visited:G.visited,camMode:G.camMode,spec:G.spec,slots:G.slots,inv:G.inv,equip:G.equip,tpl:G.tpl,talents:G.talents,subclass:G.subclass,secret:G.secret,mats:G.mats,showHp:G.showHp,wstyle:G.wstyle,
       pos:{x:Math.round(player.pos.x),z:Math.round(player.pos.z)},hp:Math.round(player.hp)};
-    await store.set(SAVE_KEY,JSON.stringify(data));
+    await store.set(charKey(G.charId),JSON.stringify(data));
+    const list=await loadList();
+    const meta={id:G.charId,name:G.name,classe:G.classe,lvl:G.lvl,maj:Date.now()};
+    const i=list.findIndex(p=>p.id===G.charId);
+    if(i>=0)list[i]=meta;else list.push(meta);
+    await store.set(LIST_KEY,JSON.stringify(list));
     el('save-ind').textContent='— veillée consignée —';
     setTimeout(()=>el('save-ind').textContent='',1800);
   }catch(e){}
 }
-async function load(){
-  try{const r=await store.get(SAVE_KEY);return JSON.parse(r.value);}catch(e){return null;}
+async function loadList(){
+  try{const l=JSON.parse((await store.get(LIST_KEY)).value);return Array.isArray(l)?l:[];}catch(e){return[];}
+}
+async function loadChar(id){
+  try{return JSON.parse((await store.get(charKey(id))).value);}catch(e){return null;}
+}
+async function supprimerPerso(id){
+  try{await store.delete(charKey(id));}catch(e){}
+  try{const l=(await loadList()).filter(p=>p.id!==id);await store.set(LIST_KEY,JSON.stringify(l));}catch(e){}
+}
+async function migrerAncienneSauvegarde(){
+  try{
+    const d=JSON.parse((await store.get(SAVE_KEY)).value);
+    if(d&&d.name){
+      d.id=newCharId();
+      await store.set(charKey(d.id),JSON.stringify(d));
+      const list=await loadList();
+      list.push({id:d.id,name:d.name,classe:d.classe||'ecorcheur',lvl:d.lvl||1,maj:Date.now()});
+      await store.set(LIST_KEY,JSON.stringify(list));}
+    await store.delete(SAVE_KEY);
+  }catch(e){}
 }
 function construireJoueur(){
   if(player.mesh)scene.remove(player.mesh);
@@ -4791,6 +4848,7 @@ function construireJoueur(){
 }
 function demarrer(data){
   if(data){
+    G.charId=data.id||newCharId();
     G.name=data.name;G.classe=data.classe||'ecorcheur';G.lvl=data.lvl;G.xp=data.xp;
     G.gold=data.gold;G.potions=data.potions;
     G.mounts=data.mounts||G.mounts;G.quests=data.quests||{};G.kills=data.kills||0;
@@ -4857,21 +4915,42 @@ construireTitre();
 previewInit();
 initMonde();
 requestAnimationFrame(tick);
+async function construireListePersos(){
+  const wrap=el('persos');wrap.innerHTML='';
+  const list=(await loadList()).sort((a,b)=>(b.maj||0)-(a.maj||0));
+  if(!list.length)return;
+  const h=document.createElement('div');h.className='persos-titre';
+  h.textContent='Reprendre une veillée';wrap.appendChild(h);
+  list.forEach(p=>{
+    const c=CLASSES[p.classe]||{ic:'❓',nom:'Inconnu'};
+    const row=document.createElement('div');row.className='perso-row';
+    const ic=document.createElement('span');ic.className='pic';ic.textContent=c.ic;
+    const pn=document.createElement('span');pn.className='pn';pn.textContent=p.name;
+    const pd=document.createElement('span');pd.className='pd';pd.textContent=c.nom+' · niv. '+p.lvl;
+    const bt=document.createElement('button');bt.className='btn mini';bt.textContent='Reprendre';
+    bt.onclick=async()=>{const d=await loadChar(p.id);if(d)demarrer(d);};
+    const del=document.createElement('button');del.className='btn mini ghost';del.textContent='✕';
+    del.title='Effacer ce personnage';
+    del.onclick=async()=>{
+      if(!del.dataset.arm){del.dataset.arm='1';del.textContent='Sûr ?';
+        setTimeout(()=>{del.dataset.arm='';del.textContent='✕';},2500);return;}
+      await supprimerPerso(p.id);construireListePersos();
+    };
+    row.append(ic,pn,pd,bt,del);wrap.appendChild(row);
+  });
+}
 (async()=>{
-  const data=await load();
-  if(data){
-    el('btn-continuer').style.display='inline-block';
-    el('titre-nom').value=data.name;
-    el('btn-continuer').onclick=()=>demarrer(data);
-    el('btn-nouveau').textContent='Nouvelle veillée (efface)';
-  }
-  el('btn-nouveau').onclick=async()=>{
-    try{await store.delete(SAVE_KEY);}catch(e){}
+  await migrerAncienneSauvegarde();
+  await construireListePersos();
+  el('btn-nouveau').onclick=()=>{
+    G.charId=newCharId();
     G.name=(el('titre-nom').value.trim()||'Sans-nom').slice(0,16);
     G.classe=selClasse;G.wstyle=selStyle;G.dashCharge=dashDef().n;
     demarrer(null);save();
   };
 })();
+addEventListener('beforeunload',()=>{if(G.started&&!player.dead)save();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.started&&!player.dead)save();});
 return{_dbg:()=>({G,player,enemies,npcs,previewSet,majApparence,demarrer,RIG_CLASS,prevMesh:()=>prevMesh}),
   fermer:fermerPanneau,acheter,acheterMonture,accepterQuete,rendreQuete,respawn,
   equipSpell,equipItem,vendreItem,choisirSpec,applyTemplate,saveTpl,applyTpl,
