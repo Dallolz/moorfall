@@ -269,12 +269,14 @@ const store=(()=>{
   try{
     localStorage.setItem('mf-probe','1');localStorage.removeItem('mf-probe');
     return{
+      persistant:true,
       async get(k){const v=localStorage.getItem(k);if(v===null)throw new Error('nokey');return{key:k,value:v};},
       async set(k,v){localStorage.setItem(k,String(v));return{key:k,value:v};},
       async delete(k){localStorage.removeItem(k);return{key:k,deleted:true};}};
   }catch(e){}
-  if(window.storage&&window.storage.get)return window.storage;
+  if(window.storage&&window.storage.get)return Object.assign(Object.create(window.storage),{persistant:true});
   const mem={};return{
+    persistant:false,
     async get(k){if(!(k in mem))throw new Error('nokey');return{key:k,value:mem[k]};},
     async set(k,v){mem[k]=v;return{key:k,value:v};},
     async delete(k){delete mem[k];return{key:k,deleted:true};}};
@@ -4940,6 +4942,15 @@ async function construireListePersos(){
   });
 }
 (async()=>{
+  const ver=document.createElement('div');
+  ver.style.cssText='position:absolute;bottom:8px;right:12px;font-size:11px;color:#5d5949';
+  ver.textContent='v13.1 — sauvegarde locale';
+  el('titre').appendChild(ver);
+  if(!store.persistant){
+    const w=document.createElement('div');
+    w.style.cssText='color:#c8503a;font-size:12px;margin:4px 0';
+    w.textContent='⚠ Stockage local indisponible : la progression ne survivra pas à la fermeture.';
+    el('persos').before(w);}
   await migrerAncienneSauvegarde();
   await construireListePersos();
   el('btn-nouveau').onclick=()=>{
