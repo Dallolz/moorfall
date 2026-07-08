@@ -238,9 +238,9 @@ canvas#scene{display:block;width:100%;height:100%;touch-action:none}
     <button class="btn" id="btn-nouveau">Commencer</button>
   </div>
   <div class="aide">
-    <b>ZQSD/WASD (ou glisser) : se déplacer</b> · <b>Espace : esquive</b> (chaque classe la sienne) · <b>Échap : tout interrompre</b> · Clic ennemi : cibler · Tab cible · E récolter · H barres de vie<br>1-6 sorts · R fiole · F monture · V vue · M carte · I sac · J journal · K grimoire · T spé · P talents · Butin au sol : marchez dessus<br>
-    Sorts presque à chaque niveau · Spécialisation niv. 10 · Talents dès le 10 · Sous-classes niv. 50 (épreuve) · Butin graduel blanc → légendaire<br>
-    Zones : Lande (1-20) → Fange (20-40) → Forêt (40-60) → Crêtes (60-70) · Montures 30/50/70 à Valcierge
+    <b>ZQSD/WASD (ou glisser) : se déplacer</b> · <b>Clic gauche : attaquer / cibler</b> · <b>Espace : esquive</b> (chaque classe la sienne) · <b>Échap : tout interrompre</b> · Tab cible · E récolter · H barres de vie<br>1-6 sorts · R fiole · F monture · V vue · M carte · I sac · J journal · K grimoire · T spé · P talents · Butin au sol : marchez dessus<br>
+    Sorts presque à chaque niveau · Spécialisation niv. 10 · Talents dès le 10 · Sous-classes niv. 50 (épreuve) · Butin graduel blanc → légendaire · Reliques de classe (très rares, amplifient votre spé)<br>
+    Zones closes, une porte chacune (piliers et feux, tournés vers Valcierge) : Lande (1-20) → Fange (20-40) → Forêt (40-60) → Crêtes (60-70) · Montures 30/50/70 à Valcierge
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -331,7 +331,15 @@ const SPECS={
   {id:'necrophore',nom:'Nécrophore',ic:'🧟',d:'Serviteurs +60% (dégâts, PV), maximum 4. Le troupeau grandit.',minion:1.6,maxMin:4},
   {id:'detonateur',nom:'Détonateur',ic:'☠',d:'Détonations et zones +30%, impact +15%. La chair est une mèche.',tg:{aoe:1.3},impact:0.15},
   {id:'perceur',nom:'Perceur',ic:'🦴',d:'Projectiles +25%, critique +6%. L\'os traverse tout.',tg:{proj:1.25},crit:0.06}]};
-function curSpec(){const l=SPECS[G.classe];return l.find(s=>s.id===G.spec)||{tg:{}};}
+function curSpec(){
+  const s=SPECS[G.classe].find(x=>x.id===G.spec)||{tg:{}};
+  if(!EQ.legs.relique)return s;
+  const a={...s,tg:{}};
+  ['crit','spd','cdr','impact','hp','dr','ls'].forEach(k=>{if(s[k])a[k]=s[k]*1.5;});
+  if(s.minion)a.minion=1+(s.minion-1)*1.5;
+  if(s.tg)Object.entries(s.tg).forEach(([k,v])=>a.tg[k]=1+(v-1)*1.5);
+  return a;
+}
 function curSub(){if(!G.subclass)return{tg:{}};
   const l=SUBCLASSES[G.classe]||[];return l.find(s=>s.id===G.subclass)||{tg:{}};}
 /* ---------- état ---------- */
@@ -343,7 +351,7 @@ const G={charId:null,name:'Sans-nom',classe:'ecorcheur',lvl:1,xp:0,gold:15,potio
   talents:{},secret:{lit:0,open:false,whisper:false,peuple:false,porteVue:false,key:false,nid:false}};
 const CL=()=>CLASSES[G.classe];
 const xpNext=l=>25+l*9;
-const XP_RATE=1.5;
+const XP_RATE=2.25;
 /* ---------- talents : aides ---------- */
 function talRank(id){return G.talents[id]||0;}
 function talSpentCol(col){let s=0;TALENTS[col].forEach(t=>s+=talRank(t.id));return s;}
@@ -375,6 +383,16 @@ const LEGENDS=[
  {k:'vampirisme',n:'Vampirisme',d:'+8% de vol de vie'},
  {k:'colosse',n:'Colosse',d:'+25% de force d\'impact'},
  {k:'celerite',n:'Célérité',d:'+12% de vitesse de déplacement'}];
+/* Reliques de classe : un butin d'exception, lié à la voie choisie au premier jour.
+   Leur pouvoir grandit avec la spécialisation : les dons de la spé sont amplifiés de moitié. */
+const RELIQUES={
+ ecorcheur:{nom:'Ivresse Rouge',d:'Le premier sang appelle le second.'},
+ briseroc:{nom:'Serment du Socle',d:'La montagne se souvient de qui la porte.'},
+ arbaletriere:{nom:'Œil de la Veuve Blanche',d:'Une ligne, une mort — jamais deux.'},
+ flagellant:{nom:'Pénitence Tressée',d:'Chaque nœud est une dette payée.'},
+ cendremage:{nom:'Cœur de Fournaise',d:'La cendre n\'oublie pas d\'avoir brûlé.'},
+ ossuaire:{nom:'Vertèbre du Premier Mort',d:'Tout troupeau retourne à son berger.'}};
+const RELIQUE_D='Les dons de votre spécialisation sont amplifiés de moitié';
 let itemSeq=1;
 /* Comme les premières zones de WoW : le blanc domine longtemps, le vert
    apparaît vers le niveau 5, le bleu reste un événement avant le 15,
@@ -392,12 +410,12 @@ function rarRoll(mlvl){
   return 0;
 }
 function bossMinRar(mlvl){return mlvl>=60?3:mlvl>=30?2:1;}
-function genItem(mlvl,boss){
-  let r=rarRoll(mlvl);
+function genItem(mlvl,boss,force){
+  let r=force&&force.rar!==undefined?force.rar:rarRoll(mlvl);
   if(boss){r=Math.max(r,bossMinRar(mlvl));
     if(mlvl>=60&&Math.random()<0.25)r=4;
     else if(mlvl>=45&&Math.random()<0.18)r=Math.max(r,3);}
-  const R=RARITES[r],slot=pickR(SLOTS_IT);
+  const R=RARITES[r],slot=force&&force.slot?force.slot:pickR(SLOTS_IT);
   const tRoll=Math.random(),tier=tRoll<0.6?1:tRoll<0.9?2:3;
   const tMult=[0,1,1.16,1.34][tier];
   const it={id:'it'+(itemSeq++),slot,rar:r,ilvl:mlvl,tier,tMult,af:{},leg:null,
@@ -409,13 +427,21 @@ function genItem(mlvl,boss){
   if(r===4)it.leg=pickR(LEGENDS).k;
   return it;
 }
+function genRelique(mlvl){
+  const it=genItem(mlvl,false,{rar:4,slot:'amulette'});
+  it.leg='relique';it.cls=G.classe;
+  it.nom=RELIQUES[G.classe].nom;
+  return it;
+}
 function itemVal(it){return Math.round((it.ilvl*0.8+3)*RARITES[it.rar].m);}
 function itemDesc(it){
   const tr=(Math.ceil(it.ilvl/10)-1)*10+1;
   const parts=Object.entries(it.af).map(([k,v])=>{
     const a=AFFIXES.find(x=>x.k===k);
     return '+'+(a.pct?(v*100).toFixed(1)+'% ':Math.round(v)+' ')+a.n;});
-  if(it.leg){const L=LEGENDS.find(x=>x.k===it.leg);parts.push('★ '+L.n+' : '+L.d);}
+  if(it.leg==='relique'){const R=RELIQUES[it.cls]||{d:''};
+    parts.push('★ Relique de '+(CLASSES[it.cls]?CLASSES[it.cls].nom:'classe')+' : '+RELIQUE_D+'. '+R.d);}
+  else if(it.leg){const L=LEGENDS.find(x=>x.k===it.leg);parts.push('★ '+L.n+' : '+L.d);}
   return 'Tranche '+tr+'-'+(tr+9)+' · Palier T'+(it.tier||1)+' — '+parts.join(' · ');
 }
 const EQ={dmg:0,hp:0,spd:0,crit:0,impact:0,cdr:0,aoe:0,proj:0,melee:0,cone:0,ctrl:0,invoc:0,ls:0,legs:{}};
@@ -1452,7 +1478,7 @@ function questProgress(type,cible){
     if(ok){s.n=Math.min(q.nb,s.n+1);
       if(s.n>=q.nb){s.state='ready';toast('Quête accomplie','Retournez voir '+giverNom(q.giver));}
       G.quests[q.id]=s;}});
-  majTracker();
+  majTracker();syncQuestItems();
 }
 function giverNom(g){return{maud:'Maud la Veilleuse',ivane:'la Sénéchale Ivane',lom:'le Padre Lom',ashka:'la Veuve Ashka',ossian:'le Frère Ossian',maitre:"le Maître d'armes Aldren",sarment:'le Vieux Sarment',noyee:'la Noyée',cordier:'le Cordier',muet:'le Frère Muet'}[g];}
 /* ---------- ennemis ---------- */
@@ -2018,6 +2044,7 @@ function equipSpell(id,slot){
 }
 /* ---------- butin (tables graduelles) ---------- */
 function dropLoot(e){
+  if(G.lvl>=10&&Math.random()<0.003){spawnLoot(genRelique(Math.max(e.lvl,G.lvl)),e.pos.x,e.pos.z);return;}
   const chance=e.def.boss?1:0.16;
   if(Math.random()>chance)return;
   spawnLoot(genItem(e.lvl,e.def.boss),e.pos.x,e.pos.z);
@@ -2058,7 +2085,7 @@ function toggleMonture(){
 function toggleVue(){
   G.camMode=G.camMode==='arpg'?'tps':'arpg';
   toast(G.camMode==='tps'?'Vue épaule':'Vue tactique',
-    G.camMode==='tps'?'ZQSD/WASD pour marcher, glisser pour tourner':'Cliquez pour vous déplacer');
+    G.camMode==='tps'?'ZQSD/WASD pour marcher, glisser pour tourner':'ZQSD pour marcher · clic gauche pour frapper');
 }
 /* ---------- panneaux ---------- */
 const pan=el('panneau');
@@ -2082,14 +2109,36 @@ function ouvrirQueteur(n){
   pan.innerHTML=html;pan.style.display='block';panOuvert='pnj';
 }
 function ouvrirMarchand(n){
-  pan.innerHTML=`<h2>${n.nom}</h2><div class="role">${n.role}</div>
+  let html=`<h2>${n.nom}</h2><div class="role">${n.role}</div>
   <p>« Tout se paie, voyageur. Même ici. Surtout ici. »</p>
   <div class="item-ligne"><div><div class="n">Fiole de sang épais</div><div class="d">Rend 50% de vos points de vie (touche R)</div></div>
     <div class="prix">8 or <button class="btn" onclick="MOOR.acheter('potion')">Acheter</button></div></div>
-  <p style="margin-top:10px">« Ton butin ? Ouvre ton sac (touche I), j'achète tout ce qui ne saigne plus. »</p>
+  <p style="margin-top:10px">« Un ballot d'équipement, jamais déballé. Choisis la pièce — la brume choisit le reste. »</p>
+  <div class="d" style="color:var(--os-dim);font-size:11.5px;margin-bottom:6px">80% blanc · 15% vert · 4,5% bleu · 0,5% légendaire — objet de votre niveau</div>`;
+  SLOTS_IT.forEach(s=>{
+    html+=`<div class="item-ligne"><div><div class="n">${SLOT_NOMS[s]} sous toile</div></div>
+    <div class="prix">${gambPrix()} or <button class="btn" ${G.gold>=gambPrix()?'':'disabled'} onclick="MOOR.gamble('${s}')">Déballer</button></div></div>`;});
+  html+=`<p style="margin-top:10px">« Ton butin ? Ouvre ton sac (touche I), j'achète tout ce qui ne saigne plus. »</p>
   <button class="btn" onclick="MOOR.ouvrirInv()">Ouvrir le sac</button>
   <button class="btn ghost" onclick="MOOR.fermer()">Partir</button>`;
-  pan.style.display='block';panOuvert='pnj';
+  pan.innerHTML=html;pan.style.display='block';panOuvert='pnj';
+}
+function gambPrix(){return Math.round(30+G.lvl*3);}
+function gambleRar(){
+  const r=Math.random();
+  return r<0.005?4:r<0.05?2:r<0.20?1:0;
+}
+function gamble(slot){
+  if(!SLOTS_IT.includes(slot)||G.gold<gambPrix())return;
+  G.gold-=gambPrix();
+  const it=genItem(G.lvl,false,{rar:gambleRar(),slot});
+  if(G.inv.length>=40)spawnLoot(it,player.pos.x,player.pos.z);
+  else{G.inv.push({...it,fresh:true});
+    toast('Déballé : '+it.nom,RARITES[it.rar].n+(it.rar>=2?' — la brume était généreuse':''));}
+  if(it.rar===4)sfx('legdrop');else sfx(it.rar>=1?'loot':'or');
+  majHud();save();
+  const m=npcs.find(x=>(x.id==='osric'||x.id==='grivel')&&dist2D(player.pos,x)<7);
+  if(m)ouvrirMarchand(m);
 }
 function ouvrirEcuyer(n){
   let html=`<h2>${n.nom}</h2><div class="role">${n.role} — l'enclos derrière elle est presque vide</div>
@@ -2121,15 +2170,17 @@ function acheterMonture(tier){
   toast(d.nom+(tier===3?' dressée':' dressé'),"Touche F pour l'appeler");
   majHud();ouvrirEcuyer(npcs.find(x=>x.id==='berthe'));save();
 }
-function accepterQuete(id){G.quests[id]={state:'active',n:0};majTracker();
-  const q=QUESTS.find(x=>x.id===id);ouvrirQueteur(npcs.find(x=>x.id===q.giver));save();}
+function accepterQuete(id){G.quests[id]={state:'active',n:0};majTracker();syncQuestItems();
+  const q=QUESTS.find(x=>x.id===id);
+  if(q.type==='collect'&&QOBJ[q.cible])toast(QOBJ[q.cible].nom+' — '+q.nb+' à trouver','Ils luisent dans la zone. Ramassez-les — ou prenez-les sur les morts.');
+  ouvrirQueteur(npcs.find(x=>x.id===q.giver));save();}
 function rendreQuete(id){
   const q=QUESTS.find(x=>x.id===id);const r=q.repeat?questRewRepeat():q.rew;
   if(r.or)G.gold+=r.or;if(r.potions)G.potions+=r.potions;
   G.quests[id]={state:'done',n:0};
   if(r.xp)gainXp(r.xp);
   if(id==='s3')setTimeout(()=>toast('Épreuve accomplie','Touche T : choisissez votre sous-classe'),2600);
-  sfx('or');majHud();majTracker();ouvrirQueteur(npcs.find(x=>x.id===q.giver));save();
+  sfx('or');majHud();majTracker();syncQuestItems();ouvrirQueteur(npcs.find(x=>x.id===q.giver));save();
 }
 /* ---------- grimoire (K) ---------- */
 function ouvrirGrimoire(){
@@ -2328,34 +2379,7 @@ const keysMove={f:false,b:false,l:false,r:false};
 const volKeys={up:false,dn:false};
 const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();
 let solRay=null;
-function pick(cx,cy){
-  mouse.x=(cx/innerWidth)*2-1;mouse.y=-(cy/innerHeight)*2+1;
-  ray.setFromCamera(mouse,camera);
-  const meshes=enemies.filter(e=>e.mesh.visible).map(e=>e.mesh);
-  const hitE=ray.intersectObjects(meshes,true)[0];
-  if(hitE){let m=hitE.object;while(m.parent&&!meshes.includes(m))m=m.parent;
-    const e=enemies.find(x=>x.mesh===m);if(e)return{enemy:e};}
-  const nm=npcs.map(n=>n.mesh);
-  const hitN=ray.intersectObjects(nm,true)[0];
-  if(hitN){let m=hitN.object;while(m.parent&&!nm.includes(m))m=m.parent;
-    const n=npcs.find(x=>x.mesh===m);if(n)return{npc:n};}
-  const hitS=ray.intersectObject(solRay)[0];
-  if(hitS)return{ground:hitS.point};
-  return{};
-}
-function clic(cx,cy){
-  if(!G.started||player.dead)return;
-  audioInit();
-  const p=pick(cx,cy);
-  if(p.enemy){player.targetEnemy=p.enemy;player.moveTarget=null;
-    if(G.activeMount>0&&!G.flying)demonter();}
-  else if(p.npc){
-    player.targetEnemy=null;
-    if(dist2D(player.pos,p.npc)<3.5){interagir(p.npc);player.moveTarget=null;}
-    else{player.moveTarget=V3(p.npc.x,0,p.npc.z);player.pendingNpc=p.npc;}}
-  else if(p.ground){player.targetEnemy=null;player.pendingNpc=null;
-    player.moveTarget=p.ground.clone();}
-}
+/* pick() et clic() sont définis plus bas (versions vivantes, hoisting) */
 let pDown=false,pX=0,pY=0,pMoved=0;
 canvas.addEventListener('pointerdown',e=>{pDown=true;pX=e.clientX;pY=e.clientY;pMoved=0;});
 canvas.addEventListener('pointermove',e=>{
@@ -2882,7 +2906,8 @@ function clic(cx,cy,shift){
     if(dist2D(player.pos,p.npc)<3.8)interagir(p.npc);
     else toast(p.npc.nom,'Approchez-vous — ZQSD / WASD');
     return;}
-  if(shift&&p.ground){
+  if(p.ground){
+    player.targetEnemy=null;
     player.facing=Math.atan2(p.ground.x-player.pos.x,p.ground.z-player.pos.z);
     attaqueBase();}
 }
@@ -3361,6 +3386,74 @@ function updateLoot(dt,now){
     L.el.style.top=((-v.y+1)/2*innerHeight)+'px';
   }
 }
+/* ---------- objets de quête au sol : ramasser plutôt que faucher ---------- */
+const QOBJ={
+ fragment:{nom:"Fragment d'os",col:0xd8d2be},
+ corde:{nom:'Corde de pendu',col:0xb08d4a},
+ insigne:{nom:'Insigne des anciens',col:0x9a4ad8},
+ lanterne:{nom:'Lanterne engloutie',col:0xd8b45a},
+ clou:{nom:'Clou de cercueil',col:0x9a9aa8}};
+const QZONE={epreuve:'foret'};
+const questItems=[];
+function collectQuestActive(cible){
+  return QUESTS.find(q=>q.type==='collect'&&q.cible===cible&&qState(q.id).state==='active');
+}
+function spawnQuestItem(cible,zoneId){
+  const z=ZONES.find(x=>x.id===zoneId)||ZONES[0];
+  let x=z.x,zz=z.z;
+  for(let i=0;i<20;i++){
+    const a=rand(0,Math.PI*2),d=rand(z.r*0.15,z.r*0.7);
+    x=z.x+Math.cos(a)*d;zz=z.z+Math.sin(a)*d;
+    if(!enSecurite({x,z:zz}))break;}
+  const def=QOBJ[cible];
+  const g=new THREE.Group();
+  const gem=new THREE.Mesh(new THREE.TetrahedronGeometry(0.28),
+    new THREE.MeshStandardMaterial({color:def.col,emissive:def.col,emissiveIntensity:0.7}));
+  gem.position.y=0.5;g.add(gem);g.userData.gem=gem;
+  const halo=new THREE.PointLight(def.col,0.55,4);halo.position.y=0.9;g.add(halo);
+  g.position.set(x,terrainH(x,zz),zz);
+  scene.add(g);
+  const lbl=document.createElement('div');
+  lbl.className='lootlbl';lbl.style.color='#'+def.col.toString(16).padStart(6,'0');
+  lbl.textContent=def.nom;
+  document.body.appendChild(lbl);
+  questItems.push({cible,mesh:g,el:lbl,x,z:zz,bob:rand(0,6)});
+}
+function removeQuestItem(i){
+  const Q=questItems[i];scene.remove(Q.mesh);Q.el.remove();questItems.splice(i,1);
+}
+function syncQuestItems(){
+  for(let i=questItems.length-1;i>=0;i--){
+    if(!collectQuestActive(questItems[i].cible))removeQuestItem(i);}
+  QUESTS.forEach(q=>{
+    if(q.type!=='collect')return;
+    const s=qState(q.id);if(s.state!=='active')return;
+    const want=Math.min(q.nb-s.n,8);
+    const have=questItems.filter(Q=>Q.cible===q.cible).length;
+    for(let i=have;i<want;i++)spawnQuestItem(q.cible,QZONE[q.zone]||q.zone);});
+}
+function questItemsTick(dt,now){
+  for(let i=questItems.length-1;i>=0;i--){
+    const Q=questItems[i];
+    Q.mesh.userData.gem.position.y=0.5+Math.sin(now/380+Q.bob)*0.1;
+    Q.mesh.userData.gem.rotation.y+=dt*2.2;
+    const d=dist2D(player.pos,Q);
+    if(d<1.6&&!player.dead){
+      if(!collectQuestActive(Q.cible))continue;
+      spawnPart(Q.x,0.6,Q.z,12,{col:QOBJ[Q.cible].col,spd:2.5,up:3,life:0.5});
+      toast('Ramassé : '+QOBJ[Q.cible].nom,'');
+      sfx('or');
+      removeQuestItem(i);
+      questProgress('collect',Q.cible);
+      continue;}
+    if(d>48){Q.el.style.opacity=0;continue;}
+    const v=V3(Q.x,Q.mesh.position.y+1.1,Q.z).project(camera);
+    if(v.z>1){Q.el.style.opacity=0;continue;}
+    Q.el.style.opacity=1;
+    Q.el.style.left=((v.x+1)/2*innerWidth)+'px';
+    Q.el.style.top=((-v.y+1)/2*innerHeight)+'px';
+  }
+}
 /* ---------- inventaire : icônes, comparaison, objets non-vus ---------- */
 const SLOT_GLYPH={arme:'⚔',tete:'🪖',torse:'🛡',jambes:'👢',amulette:'📿'};
 const TIER_ROM=['','Ⅰ','Ⅱ','Ⅲ'];
@@ -3731,6 +3824,29 @@ function mkNode(type,x,z){
   }
   g.position.set(x,terrainH(x,z),z);scene.add(g);
   nodes.push({type,x,z,mesh:g,up:true,t:0});
+}
+/* ---------- murailles : chaque contrée est un vallon clos.
+   Un seul passage par zone, tourné vers Valcierge — le monde se lit comme
+   une suite d'actes autour de la capitale, façon hub. ---------- */
+function buildMurailles(){
+  ZONES.forEach(z=>{
+    if(z.id==='capitale')return;
+    const R=z.r*0.94;
+    const gap=Math.atan2(CAPITALE.z-z.z,CAPITALE.x-z.x);
+    const half=0.22;
+    for(let a=0;a<Math.PI*2;a+=4.2/R){
+      const da=Math.abs(((a-gap+Math.PI*3)%(Math.PI*2))-Math.PI);
+      if(da<half)continue;
+      const x=z.x+Math.cos(a)*R,zz=z.z+Math.sin(a)*R;
+      if(Math.abs(x)>272||Math.abs(zz)>272)continue;
+      rocher(x,zz,rand(2.6,4.2));
+    }
+    [-1,1].forEach(sgn=>{
+      const a=gap+sgn*half;
+      const x=z.x+Math.cos(a)*R,zz=z.z+Math.sin(a)*R;
+      pilier(x,zz,rand(7,9),1.2);
+      torche(x-Math.cos(a)*3,zz-Math.sin(a)*3,1.7,14);});
+  });
 }
 function buildNodes(){
   for(let i=0;i<14;i++)mkNode('os',60+rand(-70,70),-170+rand(-55,50));
@@ -4727,6 +4843,7 @@ function tick(now){
   }
   updateParts(dt);
   updateLoot(dt,now);
+  questItemsTick(dt,now);
   crittersTick(dt,now);
   cycleTick(dt,now);
   nodesTick(dt);
@@ -4792,6 +4909,7 @@ function initMonde(){
   buildReliefs();
   buildSecret();
   buildNature();
+  buildMurailles();
   buildNodes();
   spawnCritters();
   for(let t=1;t<=3;t++)montureMeshes[t]=meshMonture(t);
@@ -4877,7 +4995,7 @@ function demarrer(data){
   }
   G.started=true;
   el('titre').style.display='none';
-  majSkillBar();majHud();majTracker();
+  majSkillBar();majHud();majTracker();syncQuestItems();
   audioInit();
   toast(data?'Bon retour, '+G.name:'La Lande de Cendrefiel',
     data?'La veillée reprend. ZQSD/WASD pour marcher.':'ZQSD/WASD pour marcher · cliquez les ennemis pour les frapper · Maud porte un marqueur doré');
@@ -4944,7 +5062,7 @@ async function construireListePersos(){
 (async()=>{
   const ver=document.createElement('div');
   ver.style.cssText='position:absolute;bottom:8px;right:12px;font-size:11px;color:#5d5949';
-  ver.textContent='v13.1 — sauvegarde locale';
+  ver.textContent='v14 — sauvegarde locale';
   el('titre').appendChild(ver);
   if(!store.persistant){
     const w=document.createElement('div');
@@ -4962,8 +5080,8 @@ async function construireListePersos(){
 })();
 addEventListener('beforeunload',()=>{if(G.started&&!player.dead)save();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.started&&!player.dead)save();});
-return{_dbg:()=>({G,player,enemies,npcs,previewSet,majApparence,demarrer,RIG_CLASS,prevMesh:()=>prevMesh}),
-  fermer:fermerPanneau,acheter,acheterMonture,accepterQuete,rendreQuete,respawn,
+return{_dbg:()=>({G,player,enemies,npcs,questItems,previewSet,majApparence,demarrer,RIG_CLASS,prevMesh:()=>prevMesh}),
+  fermer:fermerPanneau,acheter,acheterMonture,gamble,accepterQuete,rendreQuete,respawn,
   equipSpell,equipItem,vendreItem,choisirSpec,applyTemplate,saveTpl,applyTpl,
   talUp,talReset,choisirSub,
   sideAccept,sideDecline,sideDone,forger,retremper,ack,tip,tipHide,
