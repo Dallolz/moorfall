@@ -398,10 +398,16 @@ function mpTick(dt,now,phase,spd){
       MP.tp=0;
       majGroupeHp();
       if(MP.shared){
+        /* n'envoie que ce qui a bougé/changé : avec ~300 mobs possédés,
+           streamer tout à 10 Hz coûterait ~180 Ko/s ; l'état serveur persiste */
         const ents=[];
-        MP.mobs.forEach(e=>{if(e.owned&&e.state!=='dead')ents.push({id:e.sid,
-          x:+e.pos.x.toFixed(1),z:+e.pos.z.toFixed(1),f:+e.mesh.rotation.y.toFixed(2),
-          st:e.state,hp:Math.round(e.hp)});});
+        MP.mobs.forEach(e=>{if(!e.owned||e.state==='dead')return;
+          const x=+e.pos.x.toFixed(1),z=+e.pos.z.toFixed(1),
+            f=+e.mesh.rotation.y.toFixed(2),st=e.state,hp=Math.round(e.hp);
+          const l=e._mpLast||(e._mpLast={});
+          if(x===l.x&&z===l.z&&f===l.f&&st===l.st&&hp===l.hp)return;
+          l.x=x;l.z=z;l.f=f;l.st=st;l.hp=hp;
+          ents.push({id:e.sid,x,z,f,st,hp});});
         if(ents.length)mpSend({t:'epack',ents});
       }}
   }

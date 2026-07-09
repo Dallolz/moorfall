@@ -27,57 +27,44 @@ function eDmg(l,boss){return Math.round((8+l*2.6)*(boss?1.8:1));}
 function eXp(l,boss){return Math.max(1,Math.round((0.4+l*0.18)*(boss?8:1)));}
 function spawnEnemy(type,lvl,x,z,spawner){
   const d=ENEMY_DEF[type];
-  const m=humanoide({peau:d.peau,habit:d.habit,scale:d.scale,arme:d.arme,yeux:d.boss?0x8e2a1c:0x0a0a0a});
+  /* gabarit individuel : ±11%, déterministe par position de spawn pour que
+     tous les clients d'un monde partagé voient la même silhouette */
+  const jit=d.boss?1:0.89+(((Math.round(x*7)+Math.round(z*13))%97+97)%97)/97*0.22;
+  const sc=d.scale*jit;
+  const m=humanoide({peau:d.peau,habit:d.habit,scale:sc,arme:d.arme,yeux:d.boss?0x8e2a1c:0x0a0a0a});
   m.position.set(x,terrainH(x,z),z);scene.add(m);
   if(type==='berger'||type==='roi'){
     [-1,1].forEach(s=>{const c=new THREE.Mesh(new THREE.ConeGeometry(0.1,1.1,4),mat(0x4a4436));
       c.position.set(0.35*s*d.scale,1.9*d.scale,0);c.rotation.z=-0.6*s;m.add(c);});}
-  const e={type,def:d,lvl,mesh:m,pos:m.position,vel:V3(0,0,0),mass:d.mass,radius:0.4*d.scale,
+  const e={type,def:d,lvl,mesh:m,pos:m.position,vel:V3(0,0,0),mass:d.mass,radius:0.4*sc,
     hp:eHp(lvl,d.boss),maxHp:eHp(lvl,d.boss),dmg:eDmg(lvl,d.boss),
     state:'idle',t:rand(0,3),atkT:0,home:{x,z},spawner,twitch:rand(0,10),slowT:0,hitFlash:0,dot:null};
-  if(type==='porteur'){const ll=new THREE.PointLight(0xd8b45a,0.75,7);ll.position.y=1.7;m.add(ll);
-    const lan=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.2,0.14),
-      new THREE.MeshStandardMaterial({color:0x8a6a2a,emissive:0xc89a3a,emissiveIntensity:0.9}));
+  /* pas de PointLight par porteur : à ~25 porteurs générés, l'éclairage
+     forward de r128 s'effondre — la lanterne brille par émissive seule */
+  if(type==='porteur'){const lan=new THREE.Mesh(_hgeo('lanterne',()=>new THREE.BoxGeometry(0.14,0.2,0.14)),
+      _hgeo('lanterneM',()=>new THREE.MeshStandardMaterial({color:0x8a6a2a,emissive:0xc89a3a,emissiveIntensity:1.4})));
     lan.position.set(0.4,1.1,0.2);m.add(lan);}
-  if(type==='brule'){const em=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.3,0.04),
-    new THREE.MeshBasicMaterial({color:0xd8622a}));em.position.set(0,1.05*d.scale,0.18*d.scale);m.add(em);}
+  if(type==='brule'){const em=new THREE.Mesh(_hgeo('braise',()=>new THREE.BoxGeometry(0.22,0.3,0.04)),
+    _hbasic(0xd8622a));em.position.set(0,1.05*sc,0.18*sc);m.add(em);}
   if(type==='echassier')m.scale.y=1.5;
   if(type==='rodeuse')m.scale.y=0.7;
   if(type==='sangsue')m.userData.parts.tete.scale.setScalar(0.5);
-  if(type==='veuve')[-1,1].forEach(sd=>{const b=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.7,0.12),mat(d.peau));
+  if(type==='veuve')[-1,1].forEach(sd=>{const b=new THREE.Mesh(_hgeo('patte',()=>new THREE.BoxGeometry(0.12,0.7,0.12)),_hmat(d.peau));
     b.position.set(0.48*sd,1.35,0);b.rotation.z=1.1*sd;m.add(b);});
-  if(type==='moine'){const cap=new THREE.Mesh(new THREE.ConeGeometry(0.26,0.4,5),mat(0x3c382c));
+  if(type==='moine'){const cap=new THREE.Mesh(_hgeo('capuche',()=>new THREE.ConeGeometry(0.26,0.4,5)),_hmat(0x3c382c));
     cap.position.y=1.75;m.add(cap);}
-  if(type==='choeur')[-0.3,0.3].forEach(xx=>{const cr=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.15,0.15),mat(0xc8c0a8,0.6));
+  if(type==='choeur')[-0.3,0.3].forEach(xx=>{const cr=new THREE.Mesh(_hgeo('crane',()=>new THREE.BoxGeometry(0.16,0.15,0.15)),_hmat(0xc8c0a8,0.6));
     cr.position.set(xx,1.9,0);m.add(cr);});
-  const tele=new THREE.Mesh(new THREE.CircleGeometry(1.7*d.scale,18),
+  const tele=new THREE.Mesh(_hgeo('tele'+d.scale,()=>new THREE.CircleGeometry(1.7*d.scale,18)),
     new THREE.MeshBasicMaterial({color:0x8e2a1c,transparent:true,opacity:0,depthWrite:false}));
   tele.rotation.x=-Math.PI/2;tele.position.y=0.04;tele.userData.keep=1;m.add(tele);e.tele=tele;
-  attachRig(m,'e:'+type,{scale:d.scale});
+  /* rig différé : greffé par la boucle de jeu quand l'ennemi approche (budget/frame) */
+  e.rigKey='e:'+type;e.rigScale=sc;
   enemies.push(e);return e;
 }
-const SPAWN_DATA=[
- {type:'creux',lvl:3,x:-24,z:104,n:5,r:11},{type:'creux',lvl:5,x:22,z:142,n:5,r:11},
- {type:'creux',lvl:7,x:-14,z:158,n:5,r:10},{type:'traqueur',lvl:9,x:-42,z:132,n:4,r:12},
- {type:'traqueur',lvl:12,x:40,z:106,n:4,r:12},{type:'creux',lvl:12,x:RUINES.x-8,z:RUINES.z+8,n:4,r:8},
- {type:'berger',lvl:14,x:RUINES.x,z:RUINES.z,n:1,r:2},
- {type:'noyeur',lvl:23,x:122,z:44,n:5,r:12},{type:'noyeur',lvl:27,x:150,z:26,n:5,r:12},
- {type:'noyeur',lvl:30,x:132,z:80,n:4,r:11},{type:'gonfle',lvl:28,x:168,z:52,n:4,r:11},
- {type:'gonfle',lvl:34,x:150,z:96,n:4,r:11},{type:'mere',lvl:38,x:188,z:74,n:1,r:2},
- {type:'pendu',lvl:43,x:-132,z:-24,n:5,r:12},{type:'pendu',lvl:48,x:-160,z:-8,n:5,r:12},
- {type:'pendu',lvl:52,x:-178,z:-42,n:4,r:11},{type:'hurleur',lvl:47,x:-146,z:-56,n:3,r:12},
- {type:'hurleur',lvl:54,x:-186,z:-20,n:3,r:12},{type:'pendeur',lvl:58,x:-202,z:-62,n:1,r:2},
- {type:'ossature',lvl:62,x:36,z:-148,n:5,r:12},{type:'ossature',lvl:66,x:78,z:-158,n:5,r:12},
- {type:'colosse',lvl:65,x:52,z:-182,n:3,r:11},{type:'colosse',lvl:69,x:88,z:-190,n:3,r:11},
- {type:'roi',lvl:70,x:62,z:-208,n:1,r:2},
- {type:'rodeuse',lvl:6,x:-40,z:100,n:4,r:11},{type:'brule',lvl:10,x:30,z:160,n:4,r:11},
- {type:'rodeuse',lvl:15,x:55,z:135,n:4,r:11},
- {type:'sangsue',lvl:22,x:120,z:70,n:5,r:11},{type:'porteur',lvl:31,x:160,z:20,n:3,r:10},
- {type:'sangsue',lvl:35,x:175,z:95,n:4,r:11},
- {type:'echassier',lvl:45,x:-120,z:-10,n:4,r:11},{type:'veuve',lvl:50,x:-170,z:-55,n:4,r:11},
- {type:'echassier',lvl:55,x:-195,z:-30,n:4,r:11},
- {type:'moine',lvl:63,x:20,z:-165,n:3,r:10},{type:'choeur',lvl:67,x:95,z:-140,n:3,r:10},
- {type:'moine',lvl:69,x:45,z:-195,n:3,r:10}];
+let rigBudget=6; // greffes de rigs autorisées par frame (rechargé par la boucle)
+/* peuplement généré (js/00-spawn-def.js) — même graine que le serveur */
+const SPAWN_DATA=genSpawnData(SPAWN_SEED);
 /* ---------- effets ---------- */
 function sang(x,z,s=1){
   const m=new THREE.Mesh(new THREE.CircleGeometry(rand(0.25,0.5)*s,7),

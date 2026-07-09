@@ -282,11 +282,16 @@ function tick(now){
   /* --- ennemis --- */
   const safe=enSecurite(player.pos);
   let danger=false;
+  rigBudget=6;
   enemies.forEach(e=>{
     const dLOD=dist2D(e.pos,player.pos);
-    if(dLOD>95){e.mesh.visible=false;if(e.bar)e.bar.el.style.display='none';
+    /* 48 u ≈ large marge au-delà du champ de la caméra ; avec le peuplement ×7,
+       95 u laissait ~300 rigs actifs. Les mobs possédés (owner MP) simulent à 140. */
+    if(dLOD>48){e.mesh.visible=false;if(e.bar)e.bar.el.style.display='none';
       if(!(e.sid&&e.owned)||dLOD>140)return;}
-    else e.mesh.visible=true;
+    else{e.mesh.visible=true;
+      if(e.rigKey&&!e.mesh.userData.rig&&!e.rigAsked&&rigBudget>0){
+        e.rigAsked=1;rigBudget--;attachRig(e.mesh,e.rigKey,{scale:e.rigScale});}}
     if(e.sid&&!e.owned){mpMobNetTick(e,dt);return;}
     if(e.state==='grabbed'){e.mesh.position.copy(e.pos);return;}
     e.t+=dt;e.twitch+=dt;e.slowT=Math.max(0,e.slowT-dt);

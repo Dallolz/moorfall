@@ -1,33 +1,15 @@
 // Registre canonique des monstres. Le serveur n'exécute pas l'IA : chaque pack
 // est simulé par un client « owner » (le joueur le plus proche) qui streame son
 // état ; le serveur garde l'autorité sur spawns, respawns, crédit de kill et
-// bornes de plausibilité. Copie de SPAWN_DATA/eHp/eDmg du client (index.html).
+// bornes de plausibilité. Le peuplement vient du module PARTAGÉ avec le client
+// (js/00-spawn-def.js, même graine => mêmes packs des deux côtés).
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
+const { genSpawnData, SPAWN_SEED } = require('../../js/00-spawn-def.js')
 
 export const BOSSES = new Set(['berger', 'mere', 'pendeur', 'roi'])
 
-export const SPAWN_DATA = [
-  { type: 'creux', lvl: 3, x: -24, z: 104, n: 5, r: 11 }, { type: 'creux', lvl: 5, x: 22, z: 142, n: 5, r: 11 },
-  { type: 'creux', lvl: 7, x: -14, z: 158, n: 5, r: 10 }, { type: 'traqueur', lvl: 9, x: -42, z: 132, n: 4, r: 12 },
-  { type: 'traqueur', lvl: 12, x: 40, z: 106, n: 4, r: 12 }, { type: 'creux', lvl: 12, x: 62, z: 158, n: 4, r: 8 },
-  { type: 'berger', lvl: 14, x: 70, z: 150, n: 1, r: 2 },
-  { type: 'noyeur', lvl: 23, x: 122, z: 44, n: 5, r: 12 }, { type: 'noyeur', lvl: 27, x: 150, z: 26, n: 5, r: 12 },
-  { type: 'noyeur', lvl: 30, x: 132, z: 80, n: 4, r: 11 }, { type: 'gonfle', lvl: 28, x: 168, z: 52, n: 4, r: 11 },
-  { type: 'gonfle', lvl: 34, x: 150, z: 96, n: 4, r: 11 }, { type: 'mere', lvl: 38, x: 188, z: 74, n: 1, r: 2 },
-  { type: 'pendu', lvl: 43, x: -132, z: -24, n: 5, r: 12 }, { type: 'pendu', lvl: 48, x: -160, z: -8, n: 5, r: 12 },
-  { type: 'pendu', lvl: 52, x: -178, z: -42, n: 4, r: 11 }, { type: 'hurleur', lvl: 47, x: -146, z: -56, n: 3, r: 12 },
-  { type: 'hurleur', lvl: 54, x: -186, z: -20, n: 3, r: 12 }, { type: 'pendeur', lvl: 58, x: -202, z: -62, n: 1, r: 2 },
-  { type: 'ossature', lvl: 62, x: 36, z: -148, n: 5, r: 12 }, { type: 'ossature', lvl: 66, x: 78, z: -158, n: 5, r: 12 },
-  { type: 'colosse', lvl: 65, x: 52, z: -182, n: 3, r: 11 }, { type: 'colosse', lvl: 69, x: 88, z: -190, n: 3, r: 11 },
-  { type: 'roi', lvl: 70, x: 62, z: -208, n: 1, r: 2 },
-  { type: 'rodeuse', lvl: 6, x: -40, z: 100, n: 4, r: 11 }, { type: 'brule', lvl: 10, x: 30, z: 160, n: 4, r: 11 },
-  { type: 'rodeuse', lvl: 15, x: 55, z: 135, n: 4, r: 11 },
-  { type: 'sangsue', lvl: 22, x: 120, z: 70, n: 5, r: 11 }, { type: 'porteur', lvl: 31, x: 160, z: 20, n: 3, r: 10 },
-  { type: 'sangsue', lvl: 35, x: 175, z: 95, n: 4, r: 11 },
-  { type: 'echassier', lvl: 45, x: -120, z: -10, n: 4, r: 11 }, { type: 'veuve', lvl: 50, x: -170, z: -55, n: 4, r: 11 },
-  { type: 'echassier', lvl: 55, x: -195, z: -30, n: 4, r: 11 },
-  { type: 'moine', lvl: 63, x: 20, z: -165, n: 3, r: 10 }, { type: 'choeur', lvl: 67, x: 95, z: -140, n: 3, r: 10 },
-  { type: 'moine', lvl: 69, x: 45, z: -195, n: 3, r: 10 },
-]
+export const SPAWN_DATA = genSpawnData(SPAWN_SEED)
 
 export function eHp(l, boss) { return Math.round((60 + l * 26) * (boss ? 6 : 1)) }
 export function eDmg(l, boss) { return Math.round((8 + l * 2.6) * (boss ? 1.8 : 1)) }

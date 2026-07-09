@@ -225,21 +225,33 @@ function construireCapitale(){
 const banniers=[];
 
 /* ---------- fabrique d'humanoïdes ---------- */
+/* géométries unitaires et matériaux partagés : des centaines d'humanoïdes
+   coexistent, l'échelle passe par un Group interne, pas par la géométrie.
+   Conséquence assumée : le flash de dégât (emissive) est partagé entre
+   silhouettes de même teinte — visible seulement en fallback sans rig. */
+const _HGEO={},_HMAT={};
+function _hgeo(k,mk){return _HGEO[k]||(_HGEO[k]=mk());}
+function _hmat(c,rough=0.9){const k=c+'|'+rough;return _HMAT[k]||(_HMAT[k]=mat(c,rough));}
+function _hbasic(c){const k='b'+c;return _HMAT[k]||(_HMAT[k]=new THREE.MeshBasicMaterial({color:c}));}
 function humanoide(o){
   const g=new THREE.Group();const s=o.scale||1;
-  const peau=mat(o.peau),habit=mat(o.habit||o.peau);
-  const torse=new THREE.Mesh(new THREE.BoxGeometry(0.62*s,0.75*s,0.34*s),habit);torse.position.y=1.05*s;torse.castShadow=true;
-  const tete=new THREE.Mesh(new THREE.BoxGeometry(0.34*s,0.38*s,0.34*s),peau);tete.position.y=1.65*s;tete.castShadow=true;
-  const yeux=new THREE.Mesh(new THREE.BoxGeometry(0.26*s,0.05*s,0.02*s),new THREE.MeshBasicMaterial({color:o.yeux||0x050505}));
-  yeux.position.set(0,1.68*s,0.18*s);
-  const mkBras=side=>{const b=new THREE.Mesh(new THREE.BoxGeometry(0.16*s,0.7*s,0.16*s),peau);
-    b.geometry.translate(0,-0.3*s,0);b.position.set(0.42*s*side,1.38*s,0);b.castShadow=true;return b;};
-  const mkJambe=side=>{const j=new THREE.Mesh(new THREE.BoxGeometry(0.2*s,0.72*s,0.2*s),habit);
-    j.geometry.translate(0,-0.34*s,0);j.position.set(0.16*s*side,0.7*s,0);j.castShadow=true;return j;};
+  const inner=new THREE.Group();inner.scale.setScalar(s);g.add(inner);
+  const peau=_hmat(o.peau),habit=_hmat(o.habit||o.peau);
+  const torse=new THREE.Mesh(_hgeo('torse',()=>new THREE.BoxGeometry(0.62,0.75,0.34)),habit);torse.position.y=1.05;torse.castShadow=true;
+  const tete=new THREE.Mesh(_hgeo('tete',()=>new THREE.BoxGeometry(0.34,0.38,0.34)),peau);tete.position.y=1.65;tete.castShadow=true;
+  const yeux=new THREE.Mesh(_hgeo('yeux',()=>new THREE.BoxGeometry(0.26,0.05,0.02)),_hbasic(o.yeux||0x050505));
+  yeux.position.set(0,1.68,0.18);
+  const mkBras=side=>{const b=new THREE.Mesh(_hgeo('bras',()=>{
+      const bg=new THREE.BoxGeometry(0.16,0.7,0.16);bg.translate(0,-0.3,0);return bg;}),peau);
+    b.position.set(0.42*side,1.38,0);b.castShadow=true;return b;};
+  const mkJambe=side=>{const j=new THREE.Mesh(_hgeo('jambe',()=>{
+      const jg=new THREE.BoxGeometry(0.2,0.72,0.2);jg.translate(0,-0.34,0);return jg;}),habit);
+    j.position.set(0.16*side,0.7,0);j.castShadow=true;return j;};
   const brasG=mkBras(-1),brasD=mkBras(1),jambeG=mkJambe(-1),jambeD=mkJambe(1);
-  g.add(torse,tete,yeux,brasG,brasD,jambeG,jambeD);
+  inner.add(torse,tete,yeux,brasG,brasD,jambeG,jambeD);
   if(o.arme){
     const arme=new THREE.Group();
+    arme.scale.setScalar(1/s); // dimensions ci-dessous déjà en *s, parent déjà scalé
     if(o.arme==='hache'){
       const m1=new THREE.Mesh(new THREE.CylinderGeometry(0.035*s,0.035*s,0.95*s,5),mat(0x241a10));m1.position.y=-0.65*s;
       const lame=new THREE.Mesh(new THREE.BoxGeometry(0.3*s,0.34*s,0.05*s),mat(0x6e6f6a,0.4));lame.position.y=-1.05*s;

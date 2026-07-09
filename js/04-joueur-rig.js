@@ -385,6 +385,7 @@ function rigTickAll(now){
   _rigs.forEach(r=>{
     let top=r.mesh;while(top.parent)top=top.parent;
     if(!top.isScene){_rigs.delete(r);r.mx.stopAllAction();r.mx.uncacheRoot(r.root);return;}
+    if(r.mesh.visible===false)return;               // LOD : hors de vue, mixer gelé
     r.mx.update(dt);
   });
 }
