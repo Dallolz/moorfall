@@ -56,6 +56,7 @@ function initMonde(){
   buildReliefs();
   buildSecret();
   buildNature();
+  buildDecorGLB();
   buildMurailles();
   buildNodes();
   spawnCritters();

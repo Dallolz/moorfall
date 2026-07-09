@@ -403,6 +403,65 @@ function buildNature(){
     new THREE.MeshStandardMaterial({color:0x5a6a4a,roughness:1}),
     120,0.6,0.7,1.3,(x,z)=>dist2D({x,z},{x:150,z:60})<78);
 }
+/* ---------- décor 3D instancié : props GLB (Kenney, CC0) teintés sombre ----------
+   Chaque prop = 1-3 InstancedMesh (une par primitive du GLB). La teinte
+   d'instance MULTIPLIE la couleur du matériau : on assombrit vers la lande. */
+function buildDecorGLB(){
+  if(typeof RIG_ON==='undefined'||!RIG_ON)return;   // même garde réseau que les rigs
+  const P=[
+   {f:'rock_largeA',n:34,s:[2.2,4.4],tint:0x8a887c,col:1.5},
+   {f:'rock_largeC',n:30,s:[2.0,4.0],tint:0x8a887c,col:1.5},
+   {f:'rock_largeE',n:26,s:[2.2,4.6],tint:0x807d6f,col:1.6},
+   {f:'rock_tallB',n:26,s:[2.4,4.4],tint:0x787468,col:1.2,zone:'cretes'},
+   {f:'rock_tallE',n:24,s:[2.4,4.8],tint:0x787468,col:1.2,zone:'cretes'},
+   {f:'rock_tallH',n:20,s:[2.2,4.2],tint:0x84806f,col:1.1},
+   {f:'stone_tallB',n:12,s:[2.6,3.6],tint:0x8f8a74,col:1.0,zone:'lande'},
+   {f:'stone_tallD',n:10,s:[2.6,3.8],tint:0x8f8a74,col:1.0,zone:'cretes'},
+   {f:'stump_old',n:30,s:[1.8,3.0],tint:0x6a5c48},
+   {f:'stump_oldTall',n:22,s:[1.8,3.2],tint:0x80704f,zone:'foret'},
+   {f:'log',n:26,s:[1.8,3.2],tint:0x6a5c48},
+   {f:'log_large',n:18,s:[2.0,3.4],tint:0x80704f,zone:'foret'},
+   {f:'mushroom_redGroup',n:26,s:[1.2,2.4],tint:0xa08a80,zone:'fange'},
+   {f:'mushroom_tanGroup',n:26,s:[1.2,2.6],tint:0xa89e88,zone:'foret'},
+   {f:'mushroom_tanTall',n:18,s:[1.4,2.8],tint:0x9e947e,zone:'fange'},
+   {f:'tree_pineTallA',n:52,s:[4.2,6.6],tint:0x6e7a62,col:0.7,zone:'foret'},
+   {f:'tree_pineTallB',n:46,s:[4.0,6.4],tint:0x687458,col:0.7,zone:'foret'},
+   {f:'tree_pineTallD',n:40,s:[4.4,7.0],tint:0x606c52,col:0.7,zone:'cretes'},
+   {f:'tree_thin_dark',n:34,s:[3.2,5.2],tint:0x5c5a48,col:0.6,zone:'lande'},
+   {f:'tree_simple_dark',n:30,s:[3.0,5.0],tint:0x585443,col:0.6,zone:'lande'},
+   {f:'plant_bushDetailed',n:60,s:[1.6,3.0],tint:0x74806a}];
+  const dummy=new THREE.Object3D(),cc=new THREE.Color();
+  P.forEach(p=>{
+    _rigLoad(_MFA+'env/'+p.f+'.glb').then(g=>{
+      const zn=p.zone?ZONES.find(z=>z.id===p.zone):null;
+      const spots=[];
+      for(let i=0;i<p.n*4&&spots.length<p.n;i++){
+        let x,z;
+        if(zn){const a=rand(0,6.28),rr=Math.sqrt(Math.random())*zn.r*0.95;
+          x=zn.x+Math.cos(a)*rr;z=zn.z+Math.sin(a)*rr;}
+        else{x=rand(-242,242);z=rand(-242,242);}
+        if(dist2D({x,z},CAPITALE)<40||dist2D({x,z},MORFAILLE)<14)continue;
+        if(p.col&&FLATS.some(f=>dist2D({x,z},f)<f.r+1))continue;
+        spots.push({x,z,s:rand(p.s[0],p.s[1]),rot:rand(0,6.28)});
+      }
+      if(!spots.length)return;
+      g.scene.traverse(src=>{
+        if(!src.isMesh)return;
+        const im=new THREE.InstancedMesh(src.geometry,src.material.clone(),spots.length);
+        spots.forEach((sp,i)=>{
+          dummy.position.set(sp.x,terrainH(sp.x,sp.z)-0.05,sp.z);
+          dummy.rotation.y=sp.rot;dummy.scale.setScalar(sp.s);dummy.updateMatrix();
+          im.setMatrixAt(i,dummy.matrix);
+          cc.setHex(p.tint).multiplyScalar(rand(0.8,1.12));im.setColorAt(i,cc);
+        });
+        if(im.instanceColor)im.instanceColor.needsUpdate=true;
+        im.castShadow=!!p.col;im.receiveShadow=true;
+        scene.add(im);
+      });
+      if(p.col)spots.forEach(sp=>obstacles.push({x:sp.x,z:sp.z,r:0.35*sp.s*p.col}));
+    }).catch(()=>{});
+  });
+}
 /* ---------- animaux non ciblables ---------- */
 const critters=[];
 function mkCorbeau(x,z){
