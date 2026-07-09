@@ -1632,6 +1632,23 @@ function xpFalloff(elvl){
 function applyDot(e,dps,dur){e.dot={dps,t:dur,tick:0.5};}
 function hurtEnemy(e,dmg,dir,force,opts={}){
   if(!e||e.state==='dead')return;
+  if(e.sid&&!e.owned){
+    // mob simulé par un autre joueur : visuels optimistes + relais serveur
+    const critR=Math.random()<statCrit();if(critR)dmg=Math.round(dmg*1.8);
+    e.hitFlash=0.12;dmgNum(e.pos,dmg,critR?'crit':'');
+    sang(e.pos.x,e.pos.z);
+    spawnPart(e.pos.x,1.2,e.pos.z,critR?24:10,
+      {col:critR?0xd8a03a:0x6e1812,spd:critR?6:3.5,dx:dir.x*3.5,dz:dir.z*3.5,life:0.55});
+    e.punch=Math.max(e.punch||0,critR?0.16:0.11);
+    const _lsR=lsTotal();if(_lsR>0&&!player.dead){player.hp=Math.min(maxHp(),player.hp+dmg*_lsR);}
+    sfx('hit',critR?1.4:1);
+    hitstop=Math.max(hitstop,critR?0.09:0.05);
+    shake=Math.max(shake,force/1000);
+    mpSend({t:'ehit',id:e.sid,dmg,fx:dir.x,fz:dir.z,force:force*statImpact(),
+      slow:opts.slow||0,dot:opts.dot?1:0,up:opts.up!==undefined?opts.up:0.35});
+    return;
+  }
+  if(e.sid&&e.owned)mpSend({t:'ehit',id:e.sid,dmg:0});
   const crit=Math.random()<statCrit();if(crit)dmg=Math.round(dmg*1.8);
   force*=statImpact();
   e.hp-=dmg;e.hitFlash=0.12;
@@ -1654,7 +1671,7 @@ function hurtEnemy(e,dmg,dir,force,opts={}){
   shake=Math.max(shake,force/1000);
   if(e.hp<=0)tueEnemy(e,dir,force);
 }
-function tueEnemy(e,dir,force){
+function tueEnemy(e,dir,force,remote){
   if(e.state==='dead')return;
   e.state='dead';sfx('mort');rigDeath(e.mesh);
   if(player.grab&&player.grab.e===e)player.grab=null;
@@ -1672,12 +1689,24 @@ function tueEnemy(e,dir,force){
   if(e.spawner){e.spawner.alive--;e.spawner.respawnT=e.def.boss?60:16;}
   if(e.def.explose){
     onde(e.pos.x,e.pos.z,0x6b5a2c);sfx('slam');
-    [...enemies].forEach(o=>{const d=dist2D(o.pos,e.pos);
+    if(!e.sid||e.owned)[...enemies].forEach(o=>{const d=dist2D(o.pos,e.pos);
       if(d<3.6){const dd=V3(o.pos.x-e.pos.x,0,o.pos.z-e.pos.z).normalize();
         hurtEnemy(o,Math.round(e.dmg*1.4),dd,440);}});
     const dp=dist2D(player.pos,e.pos);
     if(dp<3.6){const dd=V3(player.pos.x-e.pos.x,0,player.pos.z-e.pos.z).normalize();
       hurtPlayer(Math.round(e.dmg*0.9),dd,380);}}
+  if(e.bar){e.bar.el.remove();e.bar=null;}
+  if(e.def.boss)toast(e.def.nom+' est tombé','La lande retient son souffle.');
+  if(e.sid){
+    // mob partagé : le serveur crédite les participants via « edie »
+    if(!MP.on){recompensesKill(e);return;}
+    if(e.owned&&!remote)mpSend({t:'edie',id:e.sid,fx:dir.x,fz:dir.z,force:force});
+    majHud();
+    return;
+  }
+  recompensesKill(e);
+}
+function recompensesKill(e){
   const orGain=Math.round((irand(1,3)+e.lvl*0.4)*(1+0.05*talRank('r2')));
   G.gold+=orGain;sfx('or');
   dmgNum(e.pos,'+'+orGain+' or','soin');
@@ -1695,8 +1724,6 @@ function tueEnemy(e,dir,force){
   if((e.type==='ossature'||e.type==='colosse')&&Math.random()<0.6)questProgress('collect','clou');
   secretKill(e);
   if(e.def.beast&&Math.random()<0.45){G.mats.peau++;dmgNum(e.pos,'+1 peau','soin');}
-  if(e.bar){e.bar.el.remove();e.bar=null;}
-  if(e.def.boss)toast(e.def.nom+' est tombé','La lande retient son souffle.');
   majHud();
 }
 function hurtPlayer(dmg,dir,force){
@@ -1721,7 +1748,7 @@ function respawn(){
   player.dead=false;player.hp=Math.round(maxHp()*0.6);rigRevive(player.mesh);
   const pt=(G.visited.capitale&&dist2D(player.pos,CAPITALE)<dist2D(player.pos,MORFAILLE))?
     {x:CAPITALE.x,z:CAPITALE.z+8}:{x:0,z:126};
-  player.pos.set(pt.x,0,pt.z);player.vel.set(0,0,0);G.flying=false;G.altitude=0;
+  player.pos.set(pt.x,0,pt.z);player.vel.set(0,0,0);G.flying=false;G.altitude=0;MP.tp=1;
   const perte=Math.floor(G.gold*0.08);G.gold-=perte;
   if(perte>0)toast('Vous vous relevez','Réparations : -'+perte+' or');
   el('mort').style.display='none';majHud();save();
@@ -1954,7 +1981,7 @@ function doZone(sp){
 }
 function doGrab(sp){
   let best=null,bd=3.8;
-  enemies.forEach(e=>{if(e.def.boss)return;const d=dist2D(e.pos,player.pos);if(d<bd){bd=d;best=e;}});
+  enemies.forEach(e=>{if(e.def.boss||(e.sid&&!e.owned))return;const d=dist2D(e.pos,player.pos);if(d<bd){bd=d;best=e;}});
   if(!best){toast('Personne à saisir','Approchez-vous d\'un ennemi (non-boss)');return false;}
   viseTarget();best.state='grabbed';best.vel.set(0,0,0);
   player.grab={e:best,t:0,v:sp.p.v*statImpact()};return true;
@@ -4595,6 +4622,12 @@ function bossTry(e,dP){
 /* ---------- dégâts légers (zones, saignements) ---------- */
 function dmgLight(e,dmg,dir,f,slow){
   if(!e||e.state==='dead')return;
+  if(e.sid&&!e.owned){
+    e.hitFlash=0.08;dmgNum(e.pos,dmg,'');
+    mpSend({t:'ehit',id:e.sid,dmg,fx:dir?dir.x:0,fz:dir?dir.z:0,force:f||0,slow:slow||0});
+    return;
+  }
+  if(e.sid&&e.owned)mpSend({t:'ehit',id:e.sid,dmg:0});
   e.hp-=dmg;e.hitFlash=0.08;
   dmgNum(e.pos,dmg,'');
   if(f&&dir)impulse(e,dir,f,0.1);
@@ -4740,8 +4773,10 @@ function tick(now){
   let danger=false;
   enemies.forEach(e=>{
     const dLOD=dist2D(e.pos,player.pos);
-    if(dLOD>95){e.mesh.visible=false;if(e.bar)e.bar.el.style.display='none';return;}
-    e.mesh.visible=true;
+    if(dLOD>95){e.mesh.visible=false;if(e.bar)e.bar.el.style.display='none';
+      if(!(e.sid&&e.owned)||dLOD>140)return;}
+    else e.mesh.visible=true;
+    if(e.sid&&!e.owned){mpMobNetTick(e,dt);return;}
     if(e.state==='grabbed'){e.mesh.position.copy(e.pos);return;}
     e.t+=dt;e.twitch+=dt;e.slowT=Math.max(0,e.slowT-dt);
     e.spCd=Math.max(0,(e.spCd===undefined?rand(1,3):e.spCd)-dt);
@@ -4815,15 +4850,18 @@ function tick(now){
       if(esp<1.2&&e.pos.y<=terrainH(e.pos.x,e.pos.z)+0.01)e.state='chase';
     }else if(e.state==='idle'){
       if(dP<e.def.aggro&&!player.dead&&!G.flying&&!safe)e.state='chase';
+      else if(e.owned&&mpNearestRemote(e,e.def.aggro))e.state='chase';
       else if(e.t>3){e.t=0;e.wander=V3(e.home.x+rand(-4,4),0,e.home.z+rand(-4,4));}
       if(e.wander){const dx=e.wander.x-e.pos.x,dz=e.wander.z-e.pos.z,d=Math.hypot(dx,dz);
         if(d>0.5){e.vel.x=dx/d*vitesse*0.35;e.vel.z=dz/d*vitesse*0.35;
           e.mesh.rotation.y=Math.atan2(dx,dz);}else{e.vel.x=e.vel.z=0;}}
     }else if(e.state==='chase'){
-      if(player.dead||G.flying||safe||dP>e.def.aggro*2.4){e.state='idle';e.vel.x=e.vel.z=0;}
+      let cible=(player.dead||G.flying||safe)?null:player,dc=cible?dP:1e9;
+      allies.forEach(al=>{const d2=dist2D(e.pos,al.pos);if(d2<dc*0.7){cible=al;dc=d2;}});
+      if(e.owned){const nr=mpNearestRemote(e,dc*0.7);
+        if(nr){cible={remote:nr.r,pos:{x:nr.r.cur.x,z:nr.r.cur.z}};dc=nr.d;}}
+      if(!cible||dc>e.def.aggro*2.4){e.state='idle';e.vel.x=e.vel.z=0;}
       else{
-        let cible=player,dc=dP;
-        allies.forEach(al=>{const d2=dist2D(e.pos,al.pos);if(d2<dc*0.7){cible=al;dc=d2;}});
         e.cible=cible;
         if(cible===player&&trySpecial(e,dP)){}
         else{
@@ -4840,7 +4878,8 @@ function tick(now){
         e.tele.scale.setScalar(e.def.tir?0.6:1);}
       if(e.atkT>0.55){
         e.mesh.userData.parts.torse.rotation.x=0.3;rigOneShot(e.mesh,e.def&&e.def.tir?'eshoot':'eatk',0.5);
-        const cible=e.cible&&(e.cible===player||allies.includes(e.cible))?e.cible:player;
+        const cible=e.cible&&(e.cible===player||allies.includes(e.cible)||e.cible.remote)?e.cible:player;
+        if(cible.remote){cible.pos={x:cible.remote.cur.x,z:cible.remote.cur.z};}
         const dC=dist2D(e.pos,cible.pos);
         if(e.def.tir||e.forceTir){e.forceTir=false;
           const nsh=e.def.shots||1;
@@ -4853,6 +4892,8 @@ function tick(now){
           const dir=V3(cible.pos.x-e.pos.x,0,cible.pos.z-e.pos.z).normalize();
           if(cible===player){hurtPlayer(e.dmg,dir,e.def.boss?620:260);
             if(e.def.strangle)addBuff('spd',0.62,2);}
+          else if(cible.remote){mpSend({t:'eatkp',eid:e.sid,pid:cible.remote.id,dmg:e.dmg,
+            fx:dir.x,fz:dir.z,force:e.def.boss?620:260});}
           else{cible.hp-=e.dmg;impulse(cible,dir,220);dmgNum(cible.pos,e.dmg,'joueur');}
           if(e.def.leech&&e.state!=='dead'){e.hp=Math.min(e.maxHp,e.hp+e.dmg*2);dmgNum(e.pos,'+'+(e.dmg*2),'soin');}}
         e.state='chase';e.atkT=0;}
@@ -5244,7 +5285,8 @@ function mpUrl(){
     return (location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws';
   return null;
 }
-const MP={on:false,ws:null,myId:null,chars:[],remotes:new Map(),sendT:0,pseudo:''};
+const MP={on:false,ws:null,myId:null,chars:[],remotes:new Map(),sendT:0,pseudo:'',
+  mobs:new Map(),owned:new Set(),shared:false,tp:0,};
 let mpAwait=null;
 function mpSend(m){if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify(m));}
 function mpExpect(types){return new Promise((res,rej)=>{mpAwait={types,res,rej};});}
@@ -5260,6 +5302,7 @@ function mpConnect(){
     ws.onclose=()=>{
       MP.ws=null;
       if(MP.on){MP.on=false;mpClearRemotes();
+        MP.mobs.forEach(e=>{e.owned=true;});
         if(G.started)toast('Connexion perdue','La partie continue hors-ligne, sans sauvegarde. Recharge la page pour te reconnecter.');}
     };
   });
@@ -5274,10 +5317,95 @@ function mpHandle(m){
   else if(m.t==='leave')mpRemoveRemote(m.id);
   else if(m.t==='snap')m.ps.forEach(p=>{
     const r=MP.remotes.get(p.id);
-    if(r){r.tgt.x=p.x;r.tgt.z=p.z;r.tgt.f=p.f;r.hp=p.hp;r.anim=p.anim;}
+    if(r){r.tgt.x=p.x;r.tgt.z=p.z;r.tgt.f=p.f;r.hp=p.hp;r.anim=p.anim;
+      if(p.atk&&p.atk!==r.lastAtk){r.lastAtk=p.atk;r.atkObj={anim:p.atk,type:'slash',t:0.2,dur:0.5,left:0.5};}
+      if(!p.atk)r.lastAtk='';}
     else mpSpawnRemote({...p,name:'?'});});
+  else if(m.t==='eworld'){mpMobsReset();MP.shared=true;mpSetOwned(m.owned||[]);(m.ents||[]).forEach(mpMobSpawn);}
+  else if(m.t==='eown')mpSetOwned(m.owned||[]);
+  else if(m.t==='esnap')(m.ents||[]).forEach(u=>{
+    const e=MP.mobs.get(u.id);
+    if(!e)mpMobSpawn(u);
+    else if(!e.owned&&e.state!=='dead'){e.net.x=u.x;e.net.z=u.z;e.net.f=u.f;e.net.st=u.st;
+      e.hp=u.hp;e.maxHp=u.mhp||e.maxHp;}});
+  else if(m.t==='ehitf')mpApplyRemoteHit(m);
+  else if(m.t==='ehitp'){if(G.started&&!player.dead)hurtPlayer(m.dmg,V3(m.fx,0,m.fz),m.force||200);}
+  else if(m.t==='edie')mpRemoteDeath(m);
   else if(m.t==='chat')mpChatLine(m.from,m.msg);
   else if(m.t==='err')toast('Serveur',m.msg||m.code);
+}
+/* --- mobs partagés : le serveur assigne un « owner » par pack qui simule
+   l'IA localement et streame ; les autres clients rendent + relaient leurs
+   coups via le serveur --- */
+function mpMobsReset(){
+  [...enemies].forEach(e=>{scene.remove(e.mesh);if(e.bar){e.bar.el.remove();e.bar=null;}});
+  enemies.length=0;spawners.length=0;
+  MP.mobs.clear();MP.owned.clear();
+  player.targetEnemy=null;
+}
+function mpMobSpawn(u){
+  if(!u||!u.id||MP.mobs.has(u.id)||!ENEMY_DEF[u.type])return;
+  const e=spawnEnemy(u.type,u.lvl,u.x,u.z,null);
+  e.sid=u.id;e.owned=MP.owned.has(u.id);
+  e.hp=u.hp;if(u.mhp)e.maxHp=u.mhp;
+  e.home={x:u.hx!==undefined?u.hx:u.x,z:u.hz!==undefined?u.hz:u.z};
+  e.net={x:u.x,z:u.z,f:u.f||0,st:u.st||'idle'};
+  MP.mobs.set(u.id,e);
+}
+function mpSetOwned(list){
+  MP.owned=new Set(list);
+  MP.mobs.forEach((e,id)=>{
+    const was=e.owned;e.owned=MP.owned.has(id);
+    if(e.owned&&!was&&e.state!=='dead'){
+      e.pos.x=e.net.x;e.pos.z=e.net.z;e.vel.set(0,0,0);
+      if(e.state!=='idle'&&e.state!=='chase')e.state='idle';
+    }
+  });
+}
+function mpMobNetTick(e,dt){
+  const k=Math.min(1,dt*10);
+  const dx=e.net.x-e.pos.x,dz=e.net.z-e.pos.z;
+  e.pos.x+=dx*k;e.pos.z+=dz*k;
+  e.pos.y=terrainH(e.pos.x,e.pos.z);
+  let df=e.net.f-e.mesh.rotation.y;while(df>Math.PI)df-=2*Math.PI;while(df<-Math.PI)df+=2*Math.PI;
+  e.mesh.rotation.y+=df*k;
+  e.state=e.net.st;
+  e.mesh.position.copy(e.pos);
+  if(e.hitFlash>0){e.hitFlash-=dt;rigFlash(e.mesh,e.hitFlash>0);}else rigFlash(e.mesh,false);
+  if(e.tele)e.tele.material.opacity=(e.state==='windup'||e.state==='slam')?0.28:0;
+  const pt=e.mesh.userData.parts;
+  if(e.state==='windup'||e.state==='slam')pt.torse.rotation.x=-0.4;
+  else pt.torse.rotation.x*=0.9;
+  e.punch=Math.max(0,(e.punch||0)-dt*4);
+  e.mesh.scale.setScalar(1+(e.punch||0)*1.6);
+  majBar(e,dist2D(e.pos,player.pos));
+  animeHumanoide(e.mesh,phase+e.home.x,Math.min(Math.hypot(dx,dz)*10,6),null);
+}
+function mpNearestRemote(e,maxD){
+  let best=null,bd=maxD;
+  MP.remotes.forEach(r=>{
+    const d=Math.hypot(e.pos.x-r.cur.x,e.pos.z-r.cur.z);
+    if(d<bd){bd=d;best=r;}
+  });
+  return best?{r:best,d:bd}:null;
+}
+function mpApplyRemoteHit(m){
+  const e=MP.mobs.get(m.id);
+  if(!e||e.state==='dead'||!e.owned)return;
+  const dir=V3(m.fx,0,m.fz);
+  e.hp-=m.dmg;e.hitFlash=0.12;
+  dmgNum(e.pos,m.dmg,'');
+  sang(e.pos.x,e.pos.z);
+  impulse(e,dir,m.force||0,m.up);
+  if(m.slow)e.slowT=Math.max(e.slowT,m.slow);
+  if(m.dot)applyDot(e,Math.max(2,Math.round(m.dmg*0.15)),4);
+  if(e.hp<=0)tueEnemy(e,dir,m.force||150);
+}
+function mpRemoteDeath(m){
+  const e=MP.mobs.get(m.id);
+  MP.mobs.delete(m.id);
+  if(e&&e.state!=='dead')tueEnemy(e,V3(m.fx,0,m.fz),m.force||200,true);
+  if(e&&(m.parts||[]).includes(G.charId))recompensesKill(e);
 }
 function mpNameTag(name){
   const cv=document.createElement('canvas');cv.width=256;cv.height=64;
@@ -5317,14 +5445,24 @@ function mpTick(dt,now,phase,spd){
     r.phase+=dt*(2+r.spd*1.35);
     r.mesh.position.set(r.cur.x,terrainH(r.cur.x,r.cur.z),r.cur.z);
     r.mesh.rotation.y=r.cur.f;
-    animeHumanoide(r.mesh,r.phase,r.spd,null,r.classe);
+    if(r.atkObj){r.atkObj.left-=dt;if(r.atkObj.left<=0)r.atkObj=null;}
+    animeHumanoide(r.mesh,r.phase,r.spd,r.atkObj,r.classe);
   });
   if(G.started&&!player.dead){
     MP.sendT+=dt;
     if(MP.sendT>0.1){MP.sendT=0;
       mpSend({t:'state',x:+player.pos.x.toFixed(2),z:+player.pos.z.toFixed(2),
         f:+player.facing.toFixed(3),hp:Math.round(player.hp),
-        anim:spd>0.4?'run':'idle',mnt:G.activeMount|0});}
+        anim:spd>0.4?'run':'idle',mnt:G.activeMount|0,
+        atk:player.attack?(player.attack.anim||'slash'):'',tp:MP.tp});
+      MP.tp=0;
+      if(MP.shared){
+        const ents=[];
+        MP.mobs.forEach(e=>{if(e.owned&&e.state!=='dead')ents.push({id:e.sid,
+          x:+e.pos.x.toFixed(1),z:+e.pos.z.toFixed(1),f:+e.mesh.rotation.y.toFixed(2),
+          st:e.state,hp:Math.round(e.hp)});});
+        if(ents.length)mpSend({t:'epack',ents});
+      }}
   }
 }
 async function mpEnter(id){

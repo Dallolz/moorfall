@@ -1,17 +1,36 @@
 import { hashPassword, verifyPassword } from './auth.js'
+import { createMobs } from './mobs.js'
 
-// v1 trust boundary: the server owns accounts, characters and who is in the
-// world; it RELAYS positions/hp sent by clients without simulating them.
-// Server-authoritative movement and combat are a later milestone.
+// v2 trust boundary: the server owns accounts, characters, world presence,
+// the mob registry (spawns, respawns, kill credit) and bounds movement speed
+// and damage. Mob AI is simulated by one "owner" client per pack and relayed;
+// full server-side simulation is a later milestone.
 
 const NAME_RE = /^[\p{L}\p{N} _'-]{2,16}$/u
 const MAX_CHARS_PER_ACCOUNT = 8
 const CHAT_WINDOW_MS = 5000
 const CHAT_MAX_IN_WINDOW = 5
+const MAX_SPEED = 25 // u/s, dash et montures compris
+const MAX_PLAYER_HIT = 2000
+const TP_COOLDOWN_MS = 4000
 
 export function createGame(db) {
   const sessions = new Set()
+  const mobs = createMobs()
   let shuttingDown = false
+  let ownerT = 0
+
+  function sessOf(charId) {
+    for (const s of sessions) if (s.charId === charId) return s
+    return null
+  }
+  function refreshOwners() {
+    const players = [...sessions].filter(s => s.charId).map(s => ({ charId: s.charId, x: s.live.x, z: s.live.z }))
+    for (const cid of mobs.assignOwners(players)) {
+      const s = sessOf(cid)
+      if (s) send(s, { t: 'eown', owned: mobs.ownedBy(cid) })
+    }
+  }
 
   function send(sess, msg) {
     if (sess.ws.readyState === 1) sess.ws.send(JSON.stringify(msg))
@@ -92,19 +111,72 @@ export function createGame(db) {
       sess.wstyle = char.blob.wstyle || 'w1'
       sess.blob = char.blob
       const pos = char.blob.pos || { x: 0, z: 126 }
-      sess.live = { x: pos.x, z: pos.z, f: 0, hp: char.blob.hp ?? 100, anim: 'idle', mnt: 0 }
+      sess.live = { x: pos.x, z: pos.z, f: 0, hp: char.blob.hp ?? 100, anim: 'idle', mnt: 0, atk: '' }
       const players = [...sessions].filter(s => s !== sess && s.charId).map(publicState)
       send(sess, { t: 'enterok', id: char.id, blob: char.blob, players })
       broadcast({ t: 'join', p: publicState(sess) }, sess)
+      refreshOwners()
+      send(sess, { t: 'eworld', ents: mobs.visibleFor(char.id, sess.live.x, sess.live.z), owned: mobs.ownedBy(char.id) })
     },
     state(sess, m) {
       if (!sess.charId) return
-      if (typeof m.x === 'number' && isFinite(m.x)) sess.live.x = Math.max(-260, Math.min(260, m.x))
-      if (typeof m.z === 'number' && isFinite(m.z)) sess.live.z = Math.max(-260, Math.min(260, m.z))
+      if (typeof m.x === 'number' && isFinite(m.x) && typeof m.z === 'number' && isFinite(m.z)) {
+        const nx = Math.max(-260, Math.min(260, m.x))
+        const nz = Math.max(-260, Math.min(260, m.z))
+        const now = Date.now()
+        const dt = Math.min(0.5, (now - (sess.moveAt || now)) / 1000)
+        sess.moveAt = now
+        const dx = nx - sess.live.x, dz = nz - sess.live.z
+        const d = Math.hypot(dx, dz)
+        const allowed = MAX_SPEED * dt + 0.5
+        if (m.tp && now - (sess.tpAt || 0) > TP_COOLDOWN_MS) {
+          sess.tpAt = now
+          sess.live.x = nx; sess.live.z = nz
+        } else if (d <= allowed || d === 0) {
+          sess.live.x = nx; sess.live.z = nz
+        } else {
+          sess.live.x += dx / d * allowed
+          sess.live.z += dz / d * allowed
+        }
+      }
       if (typeof m.f === 'number' && isFinite(m.f)) sess.live.f = m.f
       if (typeof m.hp === 'number' && isFinite(m.hp)) sess.live.hp = m.hp
       if (typeof m.anim === 'string' && m.anim.length <= 12) sess.live.anim = m.anim
       if (typeof m.mnt === 'number') sess.live.mnt = m.mnt | 0
+      if (typeof m.atk === 'string' && m.atk.length <= 16) sess.live.atk = m.atk
+    },
+    epack(sess, m) {
+      if (!sess.charId) return
+      mobs.applyPackUpdate(sess.charId, m.ents)
+    },
+    ehit(sess, m) {
+      if (!sess.charId) return
+      const dmg = mobs.registerHit(sess.charId, String(m.id), m.dmg)
+      if (dmg === null) return
+      const owner = mobs.ownerOf(String(m.id))
+      if (!owner || owner === sess.charId) return
+      const os = sessOf(owner)
+      if (os) send(os, {
+        t: 'ehitf', id: m.id, dmg,
+        fx: +m.fx || 0, fz: +m.fz || 0, force: Math.min(2000, +m.force || 0),
+        slow: +m.slow || 0, dot: m.dot ? 1 : 0, up: typeof m.up === 'number' ? m.up : 0.35,
+      })
+    },
+    eatkp(sess, m) {
+      if (!sess.charId) return
+      if (mobs.ownerOf(String(m.eid)) !== sess.charId) return
+      const target = sessOf(String(m.pid))
+      if (!target) return
+      send(target, {
+        t: 'ehitp', dmg: Math.max(1, Math.min(MAX_PLAYER_HIT, Math.round(m.dmg) || 1)),
+        fx: +m.fx || 0, fz: +m.fz || 0, force: Math.min(2000, +m.force || 0),
+      })
+    },
+    edie(sess, m) {
+      if (!sess.charId) return
+      const parts = mobs.kill(sess.charId, String(m.id))
+      if (!parts) return
+      broadcast({ t: 'edie', id: m.id, parts, fx: +m.fx || 0, fz: +m.fz || 0, force: Math.min(2000, +m.force || 0) })
     },
     save(sess, m) {
       if (!sess.charId || typeof m.blob !== 'object' || m.blob === null) return
@@ -151,10 +223,14 @@ export function createGame(db) {
         if (sess.charId && !shuttingDown) {
           persist(sess)
           broadcast({ t: 'leave', id: sess.charId })
+          refreshOwners()
         }
       })
     },
-    snapshot() {
+    snapshot(dt = 0.1) {
+      mobs.tickRespawn(dt)
+      ownerT += dt
+      if (ownerT >= 1) { ownerT = 0; refreshOwners() }
       const inWorld = [...sessions].filter(s => s.charId)
       for (const s of inWorld) {
         const ps = inWorld.filter(o => o !== s).map(o => ({
@@ -165,8 +241,11 @@ export function createGame(db) {
           hp: o.live.hp,
           anim: o.live.anim,
           mnt: o.live.mnt,
+          atk: o.live.atk,
         }))
         send(s, { t: 'snap', ps })
+        const ents = mobs.visibleFor(s.charId, s.live.x, s.live.z)
+        if (ents.length) send(s, { t: 'esnap', ents })
       }
     },
     saveAll() {

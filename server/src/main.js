@@ -37,7 +37,7 @@ export async function startServer({ port = 8787, dbPath = 'moorfall.db', snapMs 
     wss.handleUpgrade(req, socket, head, ws => game.connect(ws))
   })
 
-  const snapTimer = setInterval(() => game.snapshot(), snapMs)
+  const snapTimer = setInterval(() => game.snapshot(snapMs / 1000), snapMs)
   const saveTimer = setInterval(() => game.saveAll(), saveMs)
 
   await new Promise(resolve => server.listen(port, resolve))
