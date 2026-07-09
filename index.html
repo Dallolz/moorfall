@@ -5285,7 +5285,7 @@ function mpUrl(){
   return MP_SERVER_OVERRIDE||null;
 }
 const MP={on:false,ws:null,myId:null,chars:[],remotes:new Map(),sendT:0,pseudo:'',
-  mobs:new Map(),owned:new Set(),shared:false,tp:0,};
+  mobs:new Map(),owned:new Set(),shared:false,tp:0,party:[]};
 let mpAwait=null;
 function mpSend(m){if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify(m));}
 function mpExpect(types){return new Promise((res,rej)=>{mpAwait={types,res,rej};});}
@@ -5317,6 +5317,7 @@ function mpHandle(m){
   else if(m.t==='snap')m.ps.forEach(p=>{
     const r=MP.remotes.get(p.id);
     if(r){r.tgt.x=p.x;r.tgt.z=p.z;r.tgt.f=p.f;r.hp=p.hp;r.anim=p.anim;
+      if(p.mhp)r.mhp=p.mhp;
       if(p.atk&&p.atk!==r.lastAtk){r.lastAtk=p.atk;r.atkObj={anim:p.atk,type:'slash',t:0.2,dur:0.5,left:0.5};}
       if(!p.atk)r.lastAtk='';}
     else mpSpawnRemote({...p,name:'?'});});
@@ -5330,8 +5331,68 @@ function mpHandle(m){
   else if(m.t==='ehitf')mpApplyRemoteHit(m);
   else if(m.t==='ehitp'){if(G.started&&!player.dead)hurtPlayer(m.dmg,V3(m.fx,0,m.fz),m.force||200);}
   else if(m.t==='edie')mpRemoteDeath(m);
-  else if(m.t==='chat')mpChatLine(m.from,m.msg);
+  else if(m.t==='pinvited'){
+    toast('Invitation de groupe',m.from+' t\'invite — tape /accept dans le chat');
+    mpChatLine('⚔',m.from+' t\'invite dans son groupe. Tape /accept pour rejoindre.',1);
+  }
+  else if(m.t==='pupdate'){MP.party=m.members||[];majGroupe();mpRetagRemotes();
+    if(MP.party.length<2)mpChatLine('⚔','Groupe dissous.',1);}
+  else if(m.t==='chat')mpChatLine(m.from,m.msg,m.p);
   else if(m.t==='err')toast('Serveur',m.msg||m.code);
+}
+/* --- groupes --- */
+function mpChatCommand(v){
+  if(v.startsWith('/invite ')){mpSend({t:'pinvite',name:v.slice(8).trim()});return;}
+  if(v==='/accept'){mpSend({t:'paccept'});return;}
+  if(v==='/leave'){mpSend({t:'pleave'});return;}
+  if(v.startsWith('/p ')){mpSend({t:'chat',msg:v.slice(3).slice(0,200),p:1});return;}
+  if(v.startsWith('/')){mpChatLine('⚔','Commandes : /invite <pseudo> · /accept · /leave · /p <message>',1);return;}
+  mpSend({t:'chat',msg:v.slice(0,200)});
+}
+function majGroupe(){
+  let box=el('mp-party');
+  if(!MP.party||MP.party.length<2){if(box)box.remove();return;}
+  if(!box){box=document.createElement('div');box.id='mp-party';
+    box.style.cssText='position:fixed;left:12px;top:132px;z-index:55;display:flex;flex-direction:column;gap:5px;font-size:12px;color:#e8dfc8;text-shadow:0 1px 2px #000';
+    document.body.appendChild(box);}
+  box.innerHTML='';
+  MP.party.forEach(mb=>{
+    const row=document.createElement('div');
+    row.style.cssText='background:rgba(12,11,7,0.65);border:1px solid #3a3226;border-left:2px solid #c8a84a;padding:4px 8px;min-width:132px';
+    const nm=document.createElement('div');
+    nm.textContent=mb.name+(mb.id===G.charId?' (toi)':'');
+    const lv=document.createElement('span');lv.style.color='#8a8570';lv.textContent=' niv '+mb.lvl;
+    nm.appendChild(lv);
+    const barBg=document.createElement('div');
+    barBg.style.cssText='height:4px;background:#241d12;margin-top:3px';
+    const bar=document.createElement('div');
+    bar.dataset.pid=mb.id;
+    bar.style.cssText='height:100%;width:100%;background:#5a7a3f';
+    barBg.appendChild(bar);
+    row.append(nm,barBg);box.appendChild(row);
+  });
+}
+function majGroupeHp(){
+  const box=el('mp-party');if(!box)return;
+  box.querySelectorAll('[data-pid]').forEach(bar=>{
+    const pid=bar.dataset.pid;let pct=1;
+    if(pid===G.charId)pct=player.hp/maxHp();
+    else{const r=MP.remotes.get(pid);if(r&&r.mhp)pct=r.hp/r.mhp;}
+    pct=Math.max(0,Math.min(1,pct));
+    bar.style.width=(pct*100)+'%';
+    bar.style.background=pct>0.5?'#5a7a3f':(pct>0.25?'#c8a84a':'#b05a4a');
+  });
+}
+function mpRetagRemotes(){
+  const ids=new Set((MP.party||[]).map(m=>m.id));
+  MP.remotes.forEach(r=>{
+    const gold=ids.has(r.id);
+    if(r.gold===gold)return;
+    r.gold=gold;
+    if(r.tag)r.mesh.remove(r.tag);
+    r.tag=mpNameTag(r.name||'?',gold?'#e8c05a':'#e8dfc8');
+    r.mesh.add(r.tag);
+  });
 }
 /* --- mobs partagés : le serveur assigne un « owner » par pack qui simule
    l'IA localement et streame ; les autres clients rendent + relaient leurs
@@ -5406,12 +5467,12 @@ function mpRemoteDeath(m){
   if(e&&e.state!=='dead')tueEnemy(e,V3(m.fx,0,m.fz),m.force||200,true);
   if(e&&(m.parts||[]).includes(G.charId))recompensesKill(e);
 }
-function mpNameTag(name){
+function mpNameTag(name,color){
   const cv=document.createElement('canvas');cv.width=256;cv.height=64;
   const g=cv.getContext('2d');g.font='600 26px Georgia,serif';g.textAlign='center';
   const w=Math.min(240,g.measureText(name).width+22);
   g.fillStyle='rgba(10,9,6,0.55)';g.fillRect(128-w/2,12,w,34);
-  g.fillStyle='#e8dfc8';g.fillText(name,128,37);
+  g.fillStyle=color||'#e8dfc8';g.fillText(name,128,37);
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false}));
   s.scale.set(3,0.75,1);s.position.y=2.7;s.renderOrder=8;
   return s;
@@ -5422,12 +5483,14 @@ function mpSpawnRemote(p){
   const mesh=humanoide({peau:c.peau,habit:c.habit,yeux:0x1a1a14});
   classKit(mesh,p.classe,p.wstyle);
   attachRig(mesh,'c:'+p.classe);
-  mesh.add(mpNameTag(p.name||'?'));
+  const gold=(MP.party||[]).some(mb=>mb.id===p.id);
+  const tag=mpNameTag(p.name||'?',gold?'#e8c05a':'#e8dfc8');
+  mesh.add(tag);
   const x=p.x??0,z=p.z??126;
   mesh.position.set(x,terrainH(x,z),z);
   scene.add(mesh);
-  MP.remotes.set(p.id,{id:p.id,name:p.name,classe:p.classe,mesh,
-    cur:{x,z,f:p.f||0},tgt:{x,z,f:p.f||0},anim:p.anim||'idle',hp:p.hp??100,
+  MP.remotes.set(p.id,{id:p.id,name:p.name,classe:p.classe,mesh,tag,gold,
+    cur:{x,z,f:p.f||0},tgt:{x,z,f:p.f||0},anim:p.anim||'idle',hp:p.hp??100,mhp:p.mhp||100,
     phase:Math.random()*6,spd:0});
 }
 function mpRemoveRemote(id){const r=MP.remotes.get(id);if(!r)return;scene.remove(r.mesh);MP.remotes.delete(id);}
@@ -5451,10 +5514,11 @@ function mpTick(dt,now,phase,spd){
     MP.sendT+=dt;
     if(MP.sendT>0.1){MP.sendT=0;
       mpSend({t:'state',x:+player.pos.x.toFixed(2),z:+player.pos.z.toFixed(2),
-        f:+player.facing.toFixed(3),hp:Math.round(player.hp),
+        f:+player.facing.toFixed(3),hp:Math.round(player.hp),mhp:Math.round(maxHp()),
         anim:spd>0.4?'run':'idle',mnt:G.activeMount|0,
         atk:player.attack?(player.attack.anim||'slash'):'',tp:MP.tp});
       MP.tp=0;
+      majGroupeHp();
       if(MP.shared){
         const ents=[];
         MP.mobs.forEach(e=>{if(e.owned&&e.state!=='dead')ents.push({id:e.sid,
@@ -5529,15 +5593,16 @@ function mpChatInit(){
   inp.style.cssText='position:fixed;left:12px;bottom:66px;width:320px;display:none;z-index:61;background:rgba(20,18,12,0.92);border:1px solid #5d5949;color:#e8dfc8;padding:6px 8px;font-size:13px';
   inp.addEventListener('keydown',e=>{
     e.stopPropagation();
-    if(e.key==='Enter'){const v=inp.value.trim();if(v)mpSend({t:'chat',msg:v.slice(0,200)});inp.value='';inp.style.display='none';inp.blur();}
+    if(e.key==='Enter'){const v=inp.value.trim();if(v)mpChatCommand(v);inp.value='';inp.style.display='none';inp.blur();}
     if(e.key==='Escape'){inp.value='';inp.style.display='none';inp.blur();}
   });
   document.body.appendChild(inp);
 }
-function mpChatLine(from,msg){
+function mpChatLine(from,msg,party){
   const box=el('mp-chat');if(!box)return;
   const d=document.createElement('div');
-  d.textContent=from+' : '+msg;
+  d.textContent=(party?'[Groupe] ':'')+from+' : '+msg;
+  if(party)d.style.color='#e8c05a';
   box.appendChild(d);
   while(box.children.length>12)box.firstChild.remove();
 }

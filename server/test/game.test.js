@@ -176,6 +176,80 @@ test('shared mobs: eworld, ownership, hit relay, kill credit, eatkp', async t =>
   a.close(); b.close()
 })
 
+async function enterWorld(port, pseudo, charName, classe = 'ecorcheur') {
+  const { c } = await loggedIn(port, pseudo)
+  c.send({ t: 'create', nom: charName, classe, wstyle: 'w1' })
+  const created = await c.next('created')
+  c.send({ t: 'enter', charId: created.char.id })
+  const enter = await c.next('enterok')
+  await c.next('eworld')
+  return { c, id: enter.id }
+}
+
+test('parties: invite, accept, party chat, shared xp in range, leave', async t => {
+  const srv = await startServer({ port: 0, dbPath: ':memory:', snapMs: 30 })
+  t.after(() => srv.close())
+  const A = await enterWorld(srv.port, 'Alice', 'Aza')
+  const B = await enterWorld(srv.port, 'Bob', 'Bor')
+  const C = await enterWorld(srv.port, 'Carl', 'Cor')
+
+  // invitation + acceptation
+  A.c.send({ t: 'pinvite', name: 'bor' }) // insensible à la casse
+  const inv = await B.c.next('pinvited')
+  assert.equal(inv.from, 'Aza')
+  assert.match((await A.c.next('chat')).msg, /Invitation envoyée/)
+  B.c.send({ t: 'paccept' })
+  const upA = await A.c.next('pupdate')
+  const upB = await B.c.next('pupdate')
+  assert.deepEqual(upA.members.map(m => m.name).sort(), ['Aza', 'Bor'])
+  assert.deepEqual(upB.members.map(m => m.name).sort(), ['Aza', 'Bor'])
+
+  // chat de groupe : B et A le voient, C non
+  A.c.send({ t: 'chat', msg: 'secret', p: 1 })
+  const pc = await B.c.next('chat')
+  assert.equal(pc.msg, 'secret')
+  assert.equal(pc.p, 1)
+  assert.equal((await A.c.next('chat')).msg, 'secret', 'écho au sender')
+  C.c.send({ t: 'chat', msg: 'public' })
+  const cc = await A.c.next('chat') // le prochain chat reçu par A doit être le public de C
+  assert.equal(cc.msg, 'public')
+
+  // XP partagée : seul A frappe ; B est à portée (spawn commun), C hors groupe
+  A.c.send({ t: 'ehit', id: 'e0', dmg: 50 })
+  A.c.send({ t: 'edie', id: 'e0' })
+  const die = await B.c.next('edie')
+  assert.ok(die.parts.includes(A.id), 'A (tueur) crédité')
+  assert.ok(die.parts.includes(B.id), 'B (groupe, à portée) crédité')
+  assert.ok(!die.parts.includes(C.id), 'C (hors groupe, sans dégâts) non crédité')
+
+  // leave : les deux reçoivent une pupdate vide (dissolution à 1 restant)
+  B.c.send({ t: 'pleave' })
+  const emptyB = await B.c.next('pupdate')
+  const emptyA = await A.c.next('pupdate')
+  assert.equal(emptyB.members.length, 0)
+  assert.equal(emptyA.members.length, 0)
+  A.c.close(); B.c.close(); C.c.close()
+})
+
+test('parties: member far from the kill gets no shared credit', async t => {
+  const srv = await startServer({ port: 0, dbPath: ':memory:', snapMs: 30 })
+  t.after(() => srv.close())
+  const A = await enterWorld(srv.port, 'Alice', 'Aza')
+  const B = await enterWorld(srv.port, 'Bob', 'Bor')
+  A.c.send({ t: 'pinvite', name: 'Bor' })
+  await B.c.next('pinvited')
+  B.c.send({ t: 'paccept' })
+  await A.c.next('pupdate')
+  B.c.send({ t: 'state', x: 200, z: -200, tp: 1 }) // B part à l'autre bout du monde
+  await new Promise(r => setTimeout(r, 100))
+  A.c.send({ t: 'ehit', id: 'e0', dmg: 50 })
+  A.c.send({ t: 'edie', id: 'e0' })
+  const die = await A.c.next('edie')
+  assert.ok(die.parts.includes(A.id))
+  assert.ok(!die.parts.includes(B.id), 'B trop loin : pas de crédit')
+  A.c.close(); B.c.close()
+})
+
 test('auth failures', async t => {
   const srv = await startServer({ port: 0, dbPath: ':memory:' })
   t.after(() => srv.close())

@@ -13,10 +13,15 @@ const CHAT_MAX_IN_WINDOW = 5
 const MAX_SPEED = 25 // u/s, dash et montures compris
 const MAX_PLAYER_HIT = 2000
 const TP_COOLDOWN_MS = 4000
+const PARTY_MAX = 5
+const PARTY_XP_RANGE = 80
 
 export function createGame(db) {
   const sessions = new Set()
   const mobs = createMobs()
+  const parties = new Map() // partyId -> Set<charId>
+  const invites = new Map() // charId invité -> partyId
+  let partySeq = 0
   let shuttingDown = false
   let ownerT = 0
 
@@ -30,6 +35,53 @@ export function createGame(db) {
       const s = sessOf(cid)
       if (s) send(s, { t: 'eown', owned: mobs.ownedBy(cid) })
     }
+  }
+
+  function partyOf(charId) {
+    for (const [pid, members] of parties) if (members.has(charId)) return pid
+    return null
+  }
+  function partyUpdate(pid) {
+    const members = parties.get(pid)
+    if (!members) return
+    const list = [...members].map(cid => {
+      const s = sessOf(cid)
+      return s ? { id: cid, name: s.charName, classe: s.classe, lvl: s.lvl } : null
+    }).filter(Boolean)
+    for (const cid of members) {
+      const s = sessOf(cid)
+      if (s) send(s, { t: 'pupdate', members: list })
+    }
+  }
+  function partyLeave(charId) {
+    const pid = partyOf(charId)
+    if (!pid) return
+    const members = parties.get(pid)
+    members.delete(charId)
+    const s = sessOf(charId)
+    if (s) send(s, { t: 'pupdate', members: [] })
+    if (members.size <= 1) {
+      for (const cid of members) {
+        const ms = sessOf(cid)
+        if (ms) send(ms, { t: 'pupdate', members: [] })
+      }
+      parties.delete(pid)
+    } else {
+      partyUpdate(pid)
+    }
+  }
+  // membres du groupe des damagers à portée du mob tué → crédit partagé
+  function expandParts(parts, mob) {
+    const out = new Set(parts)
+    for (const cid of parts) {
+      const pid = partyOf(cid)
+      if (!pid) continue
+      for (const mid of parties.get(pid)) {
+        const ms = sessOf(mid)
+        if (ms && Math.hypot(ms.live.x - mob.x, ms.live.z - mob.z) <= PARTY_XP_RANGE) out.add(mid)
+      }
+    }
+    return [...out]
   }
 
   function send(sess, msg) {
@@ -111,7 +163,7 @@ export function createGame(db) {
       sess.wstyle = char.blob.wstyle || 'w1'
       sess.blob = char.blob
       const pos = char.blob.pos || { x: 0, z: 126 }
-      sess.live = { x: pos.x, z: pos.z, f: 0, hp: char.blob.hp ?? 100, anim: 'idle', mnt: 0, atk: '' }
+      sess.live = { x: pos.x, z: pos.z, f: 0, hp: char.blob.hp ?? 100, mhp: 100, anim: 'idle', mnt: 0, atk: '' }
       const players = [...sessions].filter(s => s !== sess && s.charId).map(publicState)
       send(sess, { t: 'enterok', id: char.id, blob: char.blob, players })
       broadcast({ t: 'join', p: publicState(sess) }, sess)
@@ -141,6 +193,7 @@ export function createGame(db) {
       }
       if (typeof m.f === 'number' && isFinite(m.f)) sess.live.f = m.f
       if (typeof m.hp === 'number' && isFinite(m.hp)) sess.live.hp = m.hp
+      if (typeof m.mhp === 'number' && isFinite(m.mhp)) sess.live.mhp = Math.max(1, Math.round(m.mhp))
       if (typeof m.anim === 'string' && m.anim.length <= 12) sess.live.anim = m.anim
       if (typeof m.mnt === 'number') sess.live.mnt = m.mnt | 0
       if (typeof m.atk === 'string' && m.atk.length <= 16) sess.live.atk = m.atk
@@ -176,7 +229,37 @@ export function createGame(db) {
       if (!sess.charId) return
       const parts = mobs.kill(sess.charId, String(m.id))
       if (!parts) return
-      broadcast({ t: 'edie', id: m.id, parts, fx: +m.fx || 0, fz: +m.fz || 0, force: Math.min(2000, +m.force || 0) })
+      const mob = mobs.get(String(m.id))
+      const all = mob ? expandParts(parts, mob) : parts
+      broadcast({ t: 'edie', id: m.id, parts: all, fx: +m.fx || 0, fz: +m.fz || 0, force: Math.min(2000, +m.force || 0) })
+    },
+    pinvite(sess, m) {
+      if (!sess.charId) return
+      const target = [...sessions].find(s => s.charId && s.charName.toLowerCase() === String(m.name || '').toLowerCase())
+      if (!target || target === sess) return err(sess, 'noplayer', 'joueur introuvable')
+      if (partyOf(target.charId)) return err(sess, 'inparty', target.charName + ' est déjà dans un groupe')
+      let pid = partyOf(sess.charId)
+      if (pid && parties.get(pid).size >= PARTY_MAX) return err(sess, 'full', 'groupe complet')
+      if (!pid) {
+        pid = 'p' + ++partySeq
+        parties.set(pid, new Set([sess.charId]))
+      }
+      invites.set(target.charId, pid)
+      send(target, { t: 'pinvited', from: sess.charName })
+      send(sess, { t: 'chat', from: '⚔', msg: 'Invitation envoyée à ' + target.charName })
+    },
+    paccept(sess) {
+      if (!sess.charId) return
+      const pid = invites.get(sess.charId)
+      invites.delete(sess.charId)
+      const members = pid && parties.get(pid)
+      if (!members || members.size >= PARTY_MAX) return err(sess, 'noinvite', 'aucune invitation valable')
+      if (partyOf(sess.charId)) partyLeave(sess.charId)
+      members.add(sess.charId)
+      partyUpdate(pid)
+    },
+    pleave(sess) {
+      if (sess.charId) partyLeave(sess.charId)
     },
     save(sess, m) {
       if (!sess.charId || typeof m.blob !== 'object' || m.blob === null) return
@@ -192,6 +275,15 @@ export function createGame(db) {
       sess.chatTimes = (sess.chatTimes || []).filter(t => now - t < CHAT_WINDOW_MS)
       if (sess.chatTimes.length >= CHAT_MAX_IN_WINDOW) return err(sess, 'ratelimit', 'doucement sur le chat')
       sess.chatTimes.push(now)
+      if (m.p) {
+        const pid = partyOf(sess.charId)
+        if (!pid) return err(sess, 'noparty', 'tu n\'es pas dans un groupe')
+        for (const cid of parties.get(pid)) {
+          const ms = sessOf(cid)
+          if (ms) send(ms, { t: 'chat', from: sess.charName, msg, p: 1 })
+        }
+        return
+      }
       broadcast({ t: 'chat', from: sess.charName, msg })
     },
   }
@@ -222,6 +314,8 @@ export function createGame(db) {
         sessions.delete(sess)
         if (sess.charId && !shuttingDown) {
           persist(sess)
+          partyLeave(sess.charId)
+          invites.delete(sess.charId)
           broadcast({ t: 'leave', id: sess.charId })
           refreshOwners()
         }
@@ -239,6 +333,7 @@ export function createGame(db) {
           z: o.live.z,
           f: o.live.f,
           hp: o.live.hp,
+          mhp: o.live.mhp,
           anim: o.live.anim,
           mnt: o.live.mnt,
           atk: o.live.atk,
