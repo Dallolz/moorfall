@@ -1,0 +1,8 @@
+.git
+.claude
+node_modules
+server/node_modules
+server/*.db*
+moorfall12.html
+tools
+Dockerfile
