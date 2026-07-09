@@ -34,11 +34,20 @@ touchent que l'owner ; grab impossible sur un mob non possédé ; loot/XP instan
 par participant. La simulation 100 % serveur (modèle World of ClaudeCraft) reste la
 cible long terme.
 
-## Déploiement VPS
+## Déploiement (production : Fly.io, région CDG Paris)
 
-1. Node ≥ 18, `npm ci --omit=dev`, puis un service systemd qui lance `npm start`.
-2. Reverse proxy TLS (Caddy) : `moorfall.exemple.fr { reverse_proxy localhost:8787 }` —
-   Caddy gère le certificat et l'upgrade WebSocket automatiquement.
-3. Côté client GitHub Pages : renseigner `MP_SERVER_OVERRIDE` dans `index.html`
-   (`wss://moorfall.exemple.fr/ws`). Servi par le serveur lui-même, rien à configurer.
-4. Sauvegarde : copier `moorfall.db` (cron `sqlite3 moorfall.db ".backup ..."`).
+L'app `moorfall` tourne sur Fly.io (~2 €/mois : machine shared-cpu 256 Mo
+always-on + volume 1 Go pour la base SQLite, snapshots quotidiens automatiques).
+`Dockerfile` et `fly.toml` sont à la racine du repo.
+
+```bash
+flyctl deploy --remote-only     # depuis la racine — build distant, pas besoin de Docker local
+flyctl logs -a moorfall         # logs
+flyctl ssh console -a moorfall  # shell dans la machine (la base est dans /data)
+curl https://moorfall.fly.dev/health
+```
+
+Le serveur sert aussi le client : https://moorfall.fly.dev/ est jouable
+directement. Le client GitHub Pages vise `wss://moorfall.fly.dev/ws` via
+`MP_SERVER_OVERRIDE` dans `index.html` (utilisé seulement sur github.io/file:// ;
+en local ou sur Fly, même origine).

@@ -5276,14 +5276,13 @@ function demarrer(data){
     data?'La veillée reprend. ZQSD/WASD pour marcher.':'ZQSD/WASD pour marcher · cliquez les ennemis pour les frapper · Maud porte un marqueur doré');
 }
 /* ---------- multijoueur ---------- */
-// Servi par le serveur Node (local ou VPS) : la même origine est utilisée.
-// Sur GitHub Pages : renseigner ici l'URL wss:// du serveur, ex 'wss://moorfall.exemple.fr/ws'.
-const MP_SERVER_OVERRIDE='';
+// Servi par le serveur Node (local ou Fly.io) : la même origine est utilisée.
+// Sur GitHub Pages ou en file:// : on vise le serveur de production ci-dessous.
+const MP_SERVER_OVERRIDE='wss://moorfall.fly.dev/ws';
 function mpUrl(){
-  if(MP_SERVER_OVERRIDE)return MP_SERVER_OVERRIDE;
   if(location.protocol.startsWith('http')&&!location.host.endsWith('github.io'))
     return (location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws';
-  return null;
+  return MP_SERVER_OVERRIDE||null;
 }
 const MP={on:false,ws:null,myId:null,chars:[],remotes:new Map(),sendT:0,pseudo:'',
   mobs:new Map(),owned:new Set(),shared:false,tp:0,};
