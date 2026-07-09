@@ -7,6 +7,11 @@ import { openDb } from './db.js'
 import { createGame } from './game.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const STATIC_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+}
 
 export async function startServer({ port = 8787, dbPath = 'moorfall.db', snapMs = 100, saveMs = 30000 } = {}) {
   const db = openDb(dbPath)
@@ -17,14 +22,16 @@ export async function startServer({ port = 8787, dbPath = 'moorfall.db', snapMs 
       res.writeHead(200, { 'content-type': 'application/json' })
       return res.end(JSON.stringify({ ok: true, players: game.playerCount() }))
     }
-    if (req.url === '/' || req.url.startsWith('/index.html')) {
+    const path = req.url === '/' ? '/index.html' : req.url.split('?')[0]
+    const type = STATIC_TYPES[path.slice(path.lastIndexOf('.'))]
+    if (type && !path.includes('..') && (path === '/index.html' || path.startsWith('/js/') || path.startsWith('/css/'))) {
       try {
-        const html = await readFile(join(ROOT, 'index.html'))
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-        return res.end(html)
+        const body = await readFile(join(ROOT, path.slice(1)))
+        res.writeHead(200, { 'content-type': type })
+        return res.end(body)
       } catch {
-        res.writeHead(500)
-        return res.end('index.html introuvable')
+        res.writeHead(404)
+        return res.end('introuvable : ' + path)
       }
     }
     res.writeHead(404)

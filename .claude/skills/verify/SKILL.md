@@ -5,7 +5,10 @@ description: Vérifier Moorfall en conditions réelles — servir index.html, pi
 
 # Vérifier Moorfall
 
-Le jeu est un seul fichier `index.html` (Three.js r128 inliné, IIFE `window.MOOR`).
+Le jeu est `index.html` (coquille HTML/UI) + `css/moorfall.css` + `js/NN-*.js` — scripts
+classiques chargés dans l'ordre, portée globale partagée (top-level `const`/`function`
+visibles entre fichiers ; PAS de hoisting inter-fichiers : du code exécuté au chargement
+ne peut pas référencer un fichier ultérieur). `js/14-boot.js` assigne `window.MOOR`.
 Les modèles 3D chargent depuis raw.githubusercontent.com (repo Dallolz/moorfall-assets) —
 il faut du réseau ; sans réseau le jeu retombe sur les visuels procéduraux (`?norig` pour forcer).
 
@@ -52,5 +55,6 @@ vu par l'autre, chat, persistance après relogin).
 - L'écran titre fait tourner le preview — deux captures espacées pour juger un angle.
 - Console : les warnings AudioContext sont bénins. `THREE.SkinnedMesh with material.skinning
   set to false` = un matériau créé sans `skinning:true` (r128) — c'est un bug à corriger.
-- Toute modification de `index.html` : vérifier la syntaxe des blocs `<script>` extraits
-  avec `node --check` avant de servir.
+- Toute modification d'un fichier `js/*.js` : `node --check js/*.js` avant de servir.
+- Nouvelle déclaration top-level : vérifier qu'aucun autre fichier ne déclare le même
+  nom (`const`/`let` en double entre fichiers = SyntaxError qui tue tout le script).
