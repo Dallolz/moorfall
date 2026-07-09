@@ -7,8 +7,8 @@ const ENEMY_DEF={
  gonfle:{nom:'Gonflé',peau:0x7a6f4a,habit:0x5a5138,scale:1.3,mass:160,speed:1.6,aggro:8,explose:true},
  pendu:{nom:'Pendu',peau:0x5c5a52,habit:0x33313a,scale:1.15,mass:110,speed:3.8,aggro:11,strangle:true},
  hurleur:{nom:'Hurleur',peau:0x6a5c50,habit:0x3a2c2a,scale:0.95,mass:60,speed:2.4,aggro:16,tir:true,sp:'scream'},
- ossature:{nom:'Ossature',peau:0xb0a890,habit:0x4a463a,scale:1,mass:55,speed:4.2,aggro:12,tirAlt:true},
- colosse:{nom:"Colosse d'os",peau:0x9a927c,habit:0x3c382e,scale:1.8,mass:340,speed:2.4,aggro:10,sp:'slam'},
+ ossature:{nom:'Ossature',peau:0xb0a890,habit:0x4a463a,scale:1,mass:55,speed:4.2,aggro:12,tirAlt:true,model:'sq_rogue'},
+ colosse:{nom:"Colosse d'os",peau:0x9a927c,habit:0x3c382e,scale:1.8,mass:340,speed:2.4,aggro:10,sp:'slam',model:'sq_warrior',mtint:0x9a9284},
  berger:{nom:'Le Berger Creux',peau:0x585c4e,habit:0x2a2d24,scale:2.1,mass:420,speed:2.2,aggro:14,boss:true,arme:'baton'},
  mere:{nom:'Mère Saumâtre',peau:0x5a6e52,habit:0x2e3c30,scale:2.3,mass:520,speed:1.9,aggro:14,boss:true},
  pendeur:{nom:'Le Pendeur',peau:0x50505a,habit:0x26262e,scale:2.4,mass:480,speed:2.6,aggro:15,boss:true,arme:'fouet'},
@@ -20,8 +20,8 @@ const ENEMY_DEF={
  porteur:{nom:'Porteur de lanterne',peau:0x6a6a58,habit:0x3a3a2c,scale:1.1,mass:100,speed:2.4,aggro:12,tir:true},
  echassier:{nom:'Échassier',peau:0x565048,habit:0x2e2a24,scale:1.05,mass:60,speed:5.0,aggro:13,beast:true,sp:'lunge'},
  veuve:{nom:'Veuve des branches',peau:0x3c3a44,habit:0x26242c,scale:1.15,mass:120,speed:3.6,aggro:12,beast:true,tir:true,webs:true},
- moine:{nom:'Moine d\'os',peau:0xb0a890,habit:0x3c382c,scale:1,mass:60,speed:2.6,aggro:15,tir:true,sp:'heal'},
- choeur:{nom:'Chœur creux',peau:0xc0b89e,habit:0x403c30,scale:0.95,mass:55,speed:2.2,aggro:16,tir:true,shots:3}};
+ moine:{nom:'Moine d\'os',peau:0xb0a890,habit:0x3c382c,scale:1,mass:60,speed:2.6,aggro:15,tir:true,sp:'heal',model:'sq_mage'},
+ choeur:{nom:'Chœur creux',peau:0xc0b89e,habit:0x403c30,scale:0.95,mass:55,speed:2.2,aggro:16,tir:true,shots:3,model:'sq_mage',mtint:0x9a8ac0}};
 function eHp(l,boss){return Math.round((60+l*26)*(boss?6:1));}
 function eDmg(l,boss){return Math.round((8+l*2.6)*(boss?1.8:1));}
 function eXp(l,boss){return Math.max(1,Math.round((0.4+l*0.18)*(boss?8:1)));}

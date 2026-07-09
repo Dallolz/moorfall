@@ -93,6 +93,19 @@ const RIG_WEAPONS={
  voleur:{w1:{r:['Dagger',0.15],l:['Dagger_2',0.15]},w3:{r:['Claymore',0.17],l:['Dagger',0.15]}}};
 ['Axe','Axe_Double','Axe_Small','Claymore','Dagger','Dagger_2','Hammer_Double','Hammer_Small',
  'Scythe','Shield_Round'].forEach(n=>{RIG_FILES['W_'+n]=_MFA+'weapons/'+n+'.glb';});
+/* bestiaire à rig propre : modèles animés autonomes (clips embarqués, PAS l'UAL).
+   h = hauteur monde à scale 1 ; loco/atk/death = noms de clips DU modèle */
+const _SQ_LOCO={idle:'Idle',walk:'Walking_A',run:'Running_A',wTS:1.6,rTS:4.2};
+const MOB_MODELS={
+ sq_minion:{f:'enemies/Skeleton_Minion.glb',h:1.75,loco:_SQ_LOCO,death:'Death_A',
+   atk:{eatk:['1H_Melee_Attack_Chop','1H_Melee_Attack_Slice_Diagonal','1H_Melee_Attack_Stab'],
+        eshoot:['Spellcast_Shoot']}},
+ sq_rogue:{f:'enemies/Skeleton_Rogue.glb',h:1.8,loco:_SQ_LOCO,death:'Death_B',
+   atk:{eatk:['1H_Melee_Attack_Stab','1H_Melee_Attack_Slice_Diagonal'],eshoot:['Spellcast_Shoot']}},
+ sq_mage:{f:'enemies/Skeleton_Mage.glb',h:1.85,loco:_SQ_LOCO,death:'Death_B',
+   atk:{eatk:['1H_Melee_Attack_Chop'],eshoot:['Spellcast_Shoot'],summon:['Spellcast_Raise']}},
+ sq_warrior:{f:'enemies/Skeleton_Warrior.glb',h:1.9,loco:_SQ_LOCO,death:'Death_A',
+   atk:{eatk:['2H_Melee_Attack_Chop','2H_Melee_Attack_Spin'],eshoot:['Spellcast_Shoot']}}};
 const RIG_NPC_F=new Set(['maud','ivane','berthe','noyee','ashka']);
 const RIG_ENEMY_F=new Set(['rodeuse','veuve','mere']);
 const RIG_ENEMY_ROBED=new Set(['moine','choeur','porteur','berger','pendeur']);
@@ -104,6 +117,8 @@ function _rigDefOf(key){
   if(key.slice(0,2)==='c:')return RIG_CLASS[key.slice(2)];
   if(key.slice(0,2)==='e:'){
     const t=key.slice(2),d=ENEMY_DEF[t]||{};
+    if(d.model&&MOB_MODELS[d.model])
+      return{mob:MOB_MODELS[d.model],h:MOB_MODELS[d.model].h,skin:d.mtint||null};
     const def={g:RIG_ENEMY_F.has(t)?'f':'m',h:1.85,skin:d.peau,
       loco:d.beast?'crouch':'zombie',pieces:[],hairs:[]};
     if(RIG_ENEMY_ROBED.has(t)){
@@ -160,10 +175,40 @@ function _rigBind(src,bones,root){
   m.castShadow=true;m.frustumCulled=false;m.visible=false;
   root.add(m);return m;
 }
+/* greffe d'un modèle à rig propre : mêmes interfaces que les rigs UAL
+   (rigSet/rigOneShot/rigDeath/rigFlash), clips lus dans le GLB lui-même */
+function _attachMobRig(mesh,def,opts){
+  const mob=def.mob,sc=(opts&&opts.scale)||1;
+  _rigLoad(_MFA+mob.f).then(g=>{
+    if(!mesh.parent&&mesh!==player.mesh)return;
+    if(mesh.userData.rig)return;
+    mesh.traverse(o=>{if(o.isMesh&&!o.userData.keep)o.visible=false;});
+    const root=THREE.SkeletonUtils.clone(g.scene);
+    root.scale.setScalar(def.h/g.userData.normH*sc);
+    const mats=[];
+    root.traverse(o=>{if(o.isMesh){
+      o.castShadow=true;o.frustumCulled=false;
+      o.material=o.material.clone();mats.push(o.material);
+      if(def.skin&&o.material.color)o.material.color.multiply(new THREE.Color(def.skin));}});
+    mesh.add(root);
+    const clips={};g.animations.forEach(c=>{if(!clips[c.name])clips[c.name]=c;});
+    const mx=new THREE.AnimationMixer(root);
+    const base={idle:clips[mob.loco.idle],walk:clips[mob.loco.walk],
+      run:clips[mob.loco.run]||clips[mob.loco.walk],death:clips[mob.death]};
+    const rig={mesh,root,mx,clips,def:{atk:mob.atk},loco:mob.loco,mats,base,
+      pieces:{},hairs:{},gear:[],bones:{},cur:null,oneshot:null,dead:false,flash:0};
+    mx.addEventListener('finished',ev=>{
+      if(rig.dead)return;
+      if(rig.oneshot&&ev.action===rig.oneshot){rig.oneshot=null;rig.cur=null;}});
+    mesh.userData.rig=rig;_rigs.add(rig);RIG_DEBUG.rigs++;
+    _rigBase(rig,'idle',1);
+  }).catch(err=>{if(err&&err.stack)console.warn('[RIG] mob('+mob.f+') :',err);});
+}
 function attachRig(mesh,key,opts){
   if(!RIG_ON||!mesh)return;
   const def=_rigDefOf(key);
   if(!def)return;
+  if(def.mob)return _attachMobRig(mesh,def,opts);
   const sc=(opts&&opts.scale)||1;
   const sets=new Set(def.pieces.map(p=>p.split('_')[0]));
   if(key.slice(0,2)==='c:'){sets.add('Peasant');sets.add('Ranger');} // le loot peut tout demander
