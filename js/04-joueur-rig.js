@@ -96,6 +96,16 @@ const RIG_WEAPONS={
 /* bestiaire à rig propre : modèles animés autonomes (clips embarqués, PAS l'UAL).
    h = hauteur monde à scale 1 ; loco/atk/death = noms de clips DU modèle */
 const _SQ_LOCO={idle:'Idle',walk:'Walking_A',run:'Running_A',wTS:1.6,rTS:4.2};
+/* familles Quaternius (préfixe « CharacterArmature| » retiré au chargement) */
+const _Q_WALK={idle:'Idle',walk:'Walk',run:'Walk',wTS:1.1,rTS:2.0};
+const _Q_RUN={idle:'Idle',walk:'Walk',run:'Run',wTS:1.4,rTS:3.6};
+const _Q_FLY={idle:'Flying_Idle',walk:'Fast_Flying',run:'Fast_Flying',wTS:1.6,rTS:3.4};
+const _Q_BETE={idle:'Idle',walk:'Walk',run:'Gallop',wTS:1.5,rTS:4.5};
+const _A_BITE={eatk:['Bite_Front'],eshoot:['Bite_Front']};
+const _A_PUNCH={eatk:['Punch','Weapon'],eshoot:['Punch']};
+const _A_FLY={eatk:['Headbutt','Punch'],eshoot:['Punch','Headbutt']};
+const _A_CORNES={eatk:['Attack_Headbutt','Attack_Kick'],eshoot:['Attack_Headbutt']};
+const _A_CROCS={eatk:['Attack'],eshoot:['Attack']};
 const MOB_MODELS={
  sq_minion:{f:'enemies/Skeleton_Minion.glb',h:1.75,loco:_SQ_LOCO,death:'Death_A',
    atk:{eatk:['1H_Melee_Attack_Chop','1H_Melee_Attack_Slice_Diagonal','1H_Melee_Attack_Stab'],
@@ -105,7 +115,33 @@ const MOB_MODELS={
  sq_mage:{f:'enemies/Skeleton_Mage.glb',h:1.85,loco:_SQ_LOCO,death:'Death_B',
    atk:{eatk:['1H_Melee_Attack_Chop'],eshoot:['Spellcast_Shoot'],summon:['Spellcast_Raise']}},
  sq_warrior:{f:'enemies/Skeleton_Warrior.glb',h:1.9,loco:_SQ_LOCO,death:'Death_A',
-   atk:{eatk:['2H_Melee_Attack_Chop','2H_Melee_Attack_Spin'],eshoot:['Spellcast_Shoot']}}};
+   atk:{eatk:['2H_Melee_Attack_Chop','2H_Melee_Attack_Spin'],eshoot:['Spellcast_Shoot']}},
+ /* bêtes (Animated Animals) */
+ q_loup:{f:'enemies/Wolf.glb',h:1.15,loco:_Q_BETE,death:'Death',atk:_A_CROCS},
+ q_renard:{f:'enemies/Fox.glb',h:0.95,loco:_Q_BETE,death:'Death',atk:_A_CROCS},
+ q_cerf:{f:'enemies/Deer.glb',h:1.75,loco:_Q_BETE,death:'Death',atk:_A_CORNES},
+ q_taureau:{f:'enemies/Bull.glb',h:1.8,loco:_Q_BETE,death:'Death',atk:_A_CORNES},
+ /* marcheurs (Ultimate Monsters) */
+ q_limon:{f:'enemies/Green_Blob.glb',h:1.0,loco:_Q_WALK,death:'Death',atk:_A_BITE},
+ q_limon_pique:{f:'enemies/Green_Spiky_Blob.glb',h:1.5,loco:_Q_WALK,death:'Death',atk:_A_BITE},
+ q_chancre:{f:'enemies/Mushnub.glb',h:1.1,loco:_Q_WALK,death:'Death',atk:_A_BITE},
+ q_chancre_mur:{f:'enemies/Mushnub_Evolved.glb',h:1.6,loco:_Q_WALK,death:'Death',atk:_A_BITE},
+ q_goule:{f:'enemies/Orc_Enemy.glb',h:1.6,loco:_Q_WALK,death:'Death',atk:_A_BITE},
+ q_blafard:{f:'enemies/Yeti.glb',h:2.4,loco:_Q_WALK,death:'Death',atk:_A_BITE},
+ q_mycomage:{f:'enemies/Wizard.glb',h:1.5,loco:_Q_WALK,death:'Death',atk:_A_BITE},
+ /* coureurs */
+ q_roi_chancre:{f:'enemies/Mushroom_King.glb',h:2.3,loco:_Q_RUN,death:'Death',atk:_A_PUNCH},
+ q_crapaud:{f:'enemies/Frog.glb',h:1.15,loco:_Q_RUN,death:'Death',atk:_A_PUNCH},
+ q_demon_cendre:{f:'enemies/Blue_Demon.glb',h:2.1,loco:_Q_RUN,death:'Death',atk:_A_PUNCH},
+ q_ogre:{f:'enemies/Orc.glb',h:2.3,loco:_Q_RUN,death:'Death',atk:_A_PUNCH},
+ /* flotteurs */
+ q_spectre:{f:'enemies/Ghost.glb',h:1.7,loco:_Q_FLY,death:'Death',atk:_A_FLY},
+ q_crane:{f:'enemies/Ghost_Skull.glb',h:1.3,loco:_Q_FLY,death:'Death',atk:_A_FLY},
+ q_gargouille:{f:'enemies/Goleling.glb',h:1.2,loco:_Q_FLY,death:'Death',atk:_A_FLY},
+ q_demon:{f:'enemies/Demon.glb',h:1.6,loco:_Q_FLY,death:'Death',atk:_A_FLY},
+ q_glub:{f:'enemies/Glub.glb',h:1.3,loco:_Q_FLY,death:'Death',atk:_A_FLY},
+ q_fille:{f:'enemies/Squidle.glb',h:1.5,loco:_Q_FLY,death:'Death',atk:_A_FLY},
+ q_vouivre:{f:'enemies/Dragon_Evolved.glb',h:2.6,loco:_Q_FLY,death:'Death',atk:_A_FLY}};
 const RIG_NPC_F=new Set(['maud','ivane','berthe','noyee','ashka']);
 const RIG_ENEMY_F=new Set(['rodeuse','veuve','mere']);
 const RIG_ENEMY_ROBED=new Set(['moine','choeur','porteur','berger','pendeur']);
@@ -191,7 +227,8 @@ function _attachMobRig(mesh,def,opts){
       o.material=o.material.clone();mats.push(o.material);
       if(def.skin&&o.material.color)o.material.color.multiply(new THREE.Color(def.skin));}});
     mesh.add(root);
-    const clips={};g.animations.forEach(c=>{if(!clips[c.name])clips[c.name]=c;});
+    const clips={};g.animations.forEach(c=>{
+      const n=c.name.split('|').pop();if(!clips[n])clips[n]=c;});
     const mx=new THREE.AnimationMixer(root);
     const base={idle:clips[mob.loco.idle],walk:clips[mob.loco.walk],
       run:clips[mob.loco.run]||clips[mob.loco.walk],death:clips[mob.death]};

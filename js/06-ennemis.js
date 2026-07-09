@@ -21,7 +21,30 @@ const ENEMY_DEF={
  echassier:{nom:'Échassier',peau:0x565048,habit:0x2e2a24,scale:1.05,mass:60,speed:5.0,aggro:13,beast:true,sp:'lunge'},
  veuve:{nom:'Veuve des branches',peau:0x3c3a44,habit:0x26242c,scale:1.15,mass:120,speed:3.6,aggro:12,beast:true,tir:true,webs:true},
  moine:{nom:'Moine d\'os',peau:0xb0a890,habit:0x3c382c,scale:1,mass:60,speed:2.6,aggro:15,tir:true,sp:'heal',model:'sq_mage'},
- choeur:{nom:'Chœur creux',peau:0xc0b89e,habit:0x403c30,scale:0.95,mass:55,speed:2.2,aggro:16,tir:true,shots:3,model:'sq_mage',mtint:0x9a8ac0}};
+ choeur:{nom:'Chœur creux',peau:0xc0b89e,habit:0x403c30,scale:0.95,mass:55,speed:2.2,aggro:16,tir:true,shots:3,model:'sq_mage',mtint:0x9a8ac0},
+ /* --- bestiaire Quaternius (rig propre, peau/habit = fallback sans réseau) --- */
+ loup:{nom:'Loup famélique',peau:0x4a4038,habit:0x2c2620,scale:1,mass:60,speed:5.2,aggro:13,beast:true,sp:'lunge',model:'q_loup'},
+ renard:{nom:'Renard blafard',peau:0x6a5240,habit:0x3a2c20,scale:0.85,mass:36,speed:5.6,aggro:12,beast:true,sp:'lunge',model:'q_renard',mtint:0xb0a8b8},
+ cerf:{nom:'Cerf noirci',peau:0x3c342a,habit:0x241e16,scale:1.15,mass:150,speed:4.6,aggro:8,beast:true,model:'q_cerf',mtint:0x6a625a},
+ taureau:{nom:'Taureau vaseux',peau:0x3a3e34,habit:0x22261e,scale:1.3,mass:320,speed:4.0,aggro:9,beast:true,sp:'slam',model:'q_taureau',mtint:0x7a8272},
+ limon:{nom:'Limon de cendre',peau:0x707a5a,habit:0x4a5240,scale:0.9,mass:90,speed:1.9,aggro:8,model:'q_limon',mtint:0x9a9a86},
+ chancre:{nom:'Chancre errant',peau:0x8a7a62,habit:0x5a4e3c,scale:0.9,mass:80,speed:2.3,aggro:9,model:'q_chancre'},
+ crapaud:{nom:'Crapaud bilieux',peau:0x5a6a48,habit:0x3a4630,scale:1,mass:110,speed:3.6,aggro:10,sp:'lunge',model:'q_crapaud'},
+ glub:{nom:'Noyé luisant',peau:0x4a6a6e,habit:0x2e4448,scale:1,mass:75,speed:3.0,aggro:11,model:'q_glub'},
+ fille:{nom:"Fille d'Ychor",peau:0x5a4a6a,habit:0x382e44,scale:1.05,mass:85,speed:2.6,aggro:13,tir:true,model:'q_fille'},
+ limon_pique:{nom:"Limon d'Ychor",peau:0x4e6a4a,habit:0x324430,scale:1.1,mass:130,speed:2.0,aggro:9,model:'q_limon_pique'},
+ mycomage:{nom:'Mycomage',peau:0x8a6a8a,habit:0x54405a,scale:1,mass:70,speed:2.4,aggro:14,tir:true,sp:'heal',model:'q_mycomage'},
+ spectre:{nom:'Spectre des pendus',peau:0x9aa8b8,habit:0x5a6470,scale:1.05,mass:55,speed:3.0,aggro:14,tir:true,model:'q_spectre',mtint:0xb8c4d8},
+ crane:{nom:'Crâne hurlant',peau:0xb8b4a4,habit:0x6a665a,scale:0.85,mass:40,speed:5.0,aggro:13,sp:'lunge',model:'q_crane'},
+ chancre_mur:{nom:'Chancre mûr',peau:0x7a6a52,habit:0x4e4234,scale:1.15,mass:150,speed:2.4,aggro:10,model:'q_chancre_mur'},
+ roi_chancre:{nom:'Prince-Chancre',peau:0x8a5a4a,habit:0x5a3a30,scale:1.35,mass:280,speed:3.0,aggro:12,sp:'slam',model:'q_roi_chancre'},
+ gargouille:{nom:"Gargouille d'os",peau:0x8a8274,habit:0x565048,scale:0.95,mass:70,speed:4.4,aggro:12,sp:'lunge',model:'q_gargouille',mtint:0xa8a296},
+ demon:{nom:'Écorché ailé',peau:0x6a3a34,habit:0x44241e,scale:1.05,mass:90,speed:4.0,aggro:13,model:'q_demon'},
+ demon_cendre:{nom:'Démon de cendre',peau:0x4a5464,habit:0x2e3644,scale:1.2,mass:260,speed:3.2,aggro:12,sp:'slam',model:'q_demon_cendre'},
+ ogre:{nom:'Ogre charnier',peau:0x6a7a52,habit:0x424e34,scale:1.3,mass:320,speed:3.0,aggro:11,sp:'slam',model:'q_ogre'},
+ goule:{nom:'Goule verdâtre',peau:0x7a8a5a,habit:0x4a563a,scale:1,mass:85,speed:3.4,aggro:11,model:'q_goule'},
+ blafard:{nom:'Colosse blafard',peau:0xc8c4b8,habit:0x8a8678,scale:1.35,mass:360,speed:2.6,aggro:10,sp:'slam',model:'q_blafard'},
+ vouivre:{nom:'Vouivre des crêtes',peau:0x5a4a3a,habit:0x382e24,scale:1.25,mass:300,speed:4.2,aggro:16,tir:true,model:'q_vouivre'}};
 function eHp(l,boss){return Math.round((60+l*26)*(boss?6:1));}
 function eDmg(l,boss){return Math.round((8+l*2.6)*(boss?1.8:1));}
 function eXp(l,boss){return Math.max(1,Math.round((0.4+l*0.18)*(boss?8:1)));}

@@ -11,18 +11,25 @@ const SPAWN_FIXED=[
  {type:'berger',lvl:14,x:70,z:150,n:1,r:2},
  {type:'mere',lvl:38,x:188,z:74,n:1,r:2},
  {type:'pendeur',lvl:58,x:-202,z:-62,n:1,r:2},
- {type:'roi',lvl:70,x:62,z:-208,n:1,r:2}];
+ {type:'roi',lvl:70,x:62,z:-208,n:1,r:2},
+ /* vouivres en maraude autour du Nid (100,-88) — le nid lui-même reste vierge */
+ {type:'vouivre',lvl:68,x:114,z:-102,n:1,r:4},
+ {type:'vouivre',lvl:69,x:84,z:-104,n:1,r:4}];
 /* par zone : centre/rayon, tranche de niveaux, nombre de packs,
    types pondérés [type, poids]. Niveau croissant en s'éloignant de la capitale. */
 const SPAWN_ZONES=[
  {id:'lande',x:0,z:120,r:95,lvl:[2,19],packs:72,
-  types:[['creux',34],['traqueur',24],['rodeuse',24],['brule',18]]},
+  types:[['creux',20],['traqueur',13],['rodeuse',11],['brule',9],
+         ['loup',14],['cerf',8],['limon',12],['chancre',13]]},
  {id:'fange',x:150,z:60,r:80,lvl:[21,37],packs:64,
-  types:[['noyeur',28],['gonfle',20],['sangsue',25],['porteur',15],['creux',12]]},
+  types:[['noyeur',15],['gonfle',10],['sangsue',11],['porteur',7],
+         ['crapaud',12],['glub',10],['fille',8],['limon_pique',10],['taureau',7],['mycomage',10]]},
  {id:'foret',x:-160,z:-40,r:80,lvl:[41,57],packs:64,
-  types:[['pendu',30],['hurleur',18],['echassier',26],['veuve',26]]},
+  types:[['pendu',16],['hurleur',9],['echassier',11],['veuve',11],
+         ['spectre',14],['crane',11],['chancre_mur',10],['renard',10],['roi_chancre',8]]},
  {id:'cretes',x:60,z:-170,r:80,lvl:[60,70],packs:62,
-  types:[['ossature',32],['colosse',18],['moine',26],['choeur',24]]}];
+  types:[['ossature',14],['colosse',9],['moine',11],['choeur',9],
+         ['gargouille',12],['demon',10],['demon_cendre',8],['ogre',9],['goule',9],['blafard',6]]}];
 /* zones interdites : villages, sites de quêtes, arènes (FLATS du terrain) + marge */
 const SPAWN_EXCL=[
  {x:0,z:-20,r:52},{x:0,z:120,r:24},{x:70,z:150,r:22},
@@ -32,7 +39,9 @@ const SPAWN_EXCL=[
  {x:-208,z:214,r:24},{x:226,z:224,r:38},{x:100,z:-88,r:16}];
 /* taille de pack par type (défaut 3-6) */
 const SPAWN_PACK_N={colosse:[2,3],gonfle:[3,4],porteur:[2,3],moine:[2,3],choeur:[2,3],
- hurleur:[2,3],veuve:[3,4],default:[3,6]};
+ hurleur:[2,3],veuve:[3,4],
+ cerf:[2,4],taureau:[1,2],fille:[2,3],mycomage:[2,3],roi_chancre:[1,1],
+ demon_cendre:[2,3],ogre:[2,3],blafard:[1,2],vouivre:[1,1],default:[3,6]};
 function spawnRng(seed){ /* mulberry32 */
   let a=seed>>>0;
   return function(){a|=0;a=(a+0x6D2B79F5)|0;
