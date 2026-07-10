@@ -248,15 +248,15 @@ function crete(x,z,h){
 }
 function buildReliefs(){
   // arête entre Valcierge et la Fange — un seul col au sol, survol direct en Vouivre
-  for(let i=0;i<14;i++){const t=i/13;
+  for(let i=0;i<20;i++){const t=i/19;
     if(t>0.42&&t<0.58)continue;
-    crete(46+t*76+rand(-3,3),4+t*40+rand(-3,3),rand(9,16));}
+    crete(69+t*114+rand(-4,4),6+t*60+rand(-4,4),rand(9,16));}
   // arête barrant l'approche des Crêtes — col unique à l'est
-  for(let i=0;i<16;i++){const t=i/15;
+  for(let i=0;i<23;i++){const t=i/22;
     if(t>0.68&&t<0.8)continue;
-    crete(-4+t*118+rand(-3,3),-112+rand(-4,4),rand(10,18));}
+    crete(-6+t*177+rand(-4,4),-168+rand(-6,6),rand(10,18));}
   // aiguilles isolées — repères de vol
-  [[-70,60,22],[-180,120,26],[150,-60,24],[200,180,20],[-60,-190,25]].forEach(([x,z,h])=>crete(x,z,h));
+  [[-105,90,22],[-270,180,26],[225,-90,24],[300,270,20],[-90,-285,25]].forEach(([x,z,h])=>crete(x,z,h));
   // le Nid de la Vouivre : seul le vol y mène
   const flch=new THREE.Mesh(new THREE.ConeGeometry(4.5,30,6),mat(0x2a2c24));
   flch.position.set(NID.x,0,NID.z);scene.add(flch);
@@ -266,9 +266,9 @@ function buildReliefs(){
   const lueur=new THREE.PointLight(0xd8b45a,0.8,14);
   lueur.position.set(NID.x,16,NID.z);scene.add(lueur);
 }
-const NID={x:100,z:-88};
+const NID={x:150,z:-132};
 /* ---------- le secret : le Cercle Éteint et l'Envers ---------- */
-const CERCLE={x:-208,z:214},ENVERS={x:226,z:224},PORTE={x:226,z:241},RETOUR={x:218,z:216};
+const CERCLE={x:-312,z:321},ENVERS={x:339,z:336},PORTE={x:339,z:353},RETOUR={x:331,z:328};
 const secretTorches=[];
 const CHUCHOTS=['…une bouche s\'éveille…','…deux… le sang se souvient…','…trois… elles avaient un nom…',
  '…quatre… qui compte encore ?…','…cinq… presque assez…','…six… la pierre a soif…','…SEPT. Montez sur la dalle.'];
@@ -326,7 +326,7 @@ function secretKill(e){
 function secretTick(){
   const S=G.secret;
   // chuchotement d'approche
-  if(!S.whisper&&dist2D(player.pos,CERCLE)<26){S.whisper=true;
+  if(!S.whisper&&dist2D(player.pos,CERCLE)<36){S.whisper=true;
     toast('​','…sept bouches éteintes… le sang les nourrit…');}
   // torches déjà allumées après chargement
   for(let i=0;i<S.lit&&i<7;i++)if(!secretTorches[i].lit)allumeTorche(i);
@@ -339,7 +339,7 @@ function secretTick(){
       for(let k=0;k<3;k++)spawnEnemy('absent',72,ENVERS.x+rand(-10,10),ENVERS.z+rand(-8,8),null);}
     save();}
   // la dalle ramène
-  if(dist2D(player.pos,RETOUR)<1.8&&dist2D(player.pos,ENVERS)<40&&!player.dead){
+  if(dist2D(player.pos,RETOUR)<1.8&&dist2D(player.pos,ENVERS)<55&&!player.dead){
     player.pos.set(CERCLE.x,0,CERCLE.z+5);player.vel.set(0,0,0);
     toast('Le Cercle Éteint','Les torches sont froides. Elles se souviennent.');}
   // la Porte Sans Nom
@@ -373,9 +373,9 @@ function buildNature(){
     const im=new THREE.InstancedMesh(geo,matr,count);
     let gi=0;
     for(let i=0;i<count*2&&gi<count;i++){
-      const x=rand(-242,242),z=rand(-242,242);
-      if(dist2D({x,z},CAPITALE)<38)continue;
-      if(dist2D({x,z},MORFAILLE)<14)continue;
+      const x=rand(-365,365),z=rand(-365,365);
+      if(dist2D({x,z},CAPITALE)<58)continue;
+      if(dist2D({x,z},MORFAILLE)<22)continue;
       if(filter&&!filter(x,z))continue;
       dummy.position.set(x,terrainH(x,z)+y,z);dummy.rotation.y=rand(0,6.28);
       dummy.scale.setScalar(rand(smin,smax));dummy.updateMatrix();
@@ -387,21 +387,21 @@ function buildNature(){
     scene.add(im);return im;}
   // herbes
   scatter(new THREE.ConeGeometry(0.07,0.55,3),
-    new THREE.MeshStandardMaterial({color:0xffffff,roughness:1}),650,0.24,0.6,1.6);
+    new THREE.MeshStandardMaterial({color:0xffffff,roughness:1}),1100,0.24,0.6,1.6);
   // buissons
   scatter(new THREE.IcosahedronGeometry(0.5,0),
-    new THREE.MeshStandardMaterial({color:0xffffff,roughness:1}),150,0.3,0.5,1.1);
+    new THREE.MeshStandardMaterial({color:0xffffff,roughness:1}),260,0.3,0.5,1.1);
   // pierraille
   scatter(new THREE.DodecahedronGeometry(0.3,0),
-    new THREE.MeshStandardMaterial({color:0x8a8578,roughness:1}),130,0.12,0.5,1.3);
+    new THREE.MeshStandardMaterial({color:0x8a8578,roughness:1}),220,0.12,0.5,1.3);
   // champignons blafards de la forêt
   scatter(new THREE.ConeGeometry(0.18,0.22,6),
     new THREE.MeshStandardMaterial({color:0xc8c8b0,emissive:0x3a3a2c,roughness:0.7}),
-    36,0.11,0.7,1.4,(x,z)=>dist2D({x,z},{x:-160,z:-40})<80);
+    60,0.11,0.7,1.4,(x,z)=>dist2D({x,z},{x:-240,z:-60})<120);
   // roseaux de la Fange
   scatter(new THREE.CylinderGeometry(0.02,0.03,1.3,4),
     new THREE.MeshStandardMaterial({color:0x5a6a4a,roughness:1}),
-    120,0.6,0.7,1.3,(x,z)=>dist2D({x,z},{x:150,z:60})<78);
+    200,0.6,0.7,1.3,(x,z)=>dist2D({x,z},{x:225,z:90})<118);
 }
 /* ---------- décor 3D instancié : props GLB (Kenney, CC0) teintés sombre ----------
    Chaque prop = 1-3 InstancedMesh (une par primitive du GLB). La teinte
@@ -409,27 +409,27 @@ function buildNature(){
 function buildDecorGLB(){
   if(typeof RIG_ON==='undefined'||!RIG_ON)return;   // même garde réseau que les rigs
   const P=[
-   {f:'rock_largeA',n:34,s:[2.2,4.4],tint:0x8a887c,col:1.5},
-   {f:'rock_largeC',n:30,s:[2.0,4.0],tint:0x8a887c,col:1.5},
-   {f:'rock_largeE',n:26,s:[2.2,4.6],tint:0x807d6f,col:1.6},
-   {f:'rock_tallB',n:26,s:[2.4,4.4],tint:0x787468,col:1.2,zone:'cretes'},
-   {f:'rock_tallE',n:24,s:[2.4,4.8],tint:0x787468,col:1.2,zone:'cretes'},
-   {f:'rock_tallH',n:20,s:[2.2,4.2],tint:0x84806f,col:1.1},
-   {f:'stone_tallB',n:12,s:[2.6,3.6],tint:0x8f8a74,col:1.0,zone:'lande'},
-   {f:'stone_tallD',n:10,s:[2.6,3.8],tint:0x8f8a74,col:1.0,zone:'cretes'},
-   {f:'stump_old',n:30,s:[1.8,3.0],tint:0x6a5c48},
-   {f:'stump_oldTall',n:22,s:[1.8,3.2],tint:0x80704f,zone:'foret'},
-   {f:'log',n:26,s:[1.8,3.2],tint:0x6a5c48},
-   {f:'log_large',n:18,s:[2.0,3.4],tint:0x80704f,zone:'foret'},
-   {f:'mushroom_redGroup',n:26,s:[1.2,2.4],tint:0xa08a80,zone:'fange'},
-   {f:'mushroom_tanGroup',n:26,s:[1.2,2.6],tint:0xa89e88,zone:'foret'},
-   {f:'mushroom_tanTall',n:18,s:[1.4,2.8],tint:0x9e947e,zone:'fange'},
-   {f:'tree_pineTallA',n:52,s:[4.2,6.6],tint:0x6e7a62,col:0.7,zone:'foret'},
-   {f:'tree_pineTallB',n:46,s:[4.0,6.4],tint:0x687458,col:0.7,zone:'foret'},
-   {f:'tree_pineTallD',n:40,s:[4.4,7.0],tint:0x606c52,col:0.7,zone:'cretes'},
-   {f:'tree_thin_dark',n:34,s:[3.2,5.2],tint:0x5c5a48,col:0.6,zone:'lande'},
-   {f:'tree_simple_dark',n:30,s:[3.0,5.0],tint:0x585443,col:0.6,zone:'lande'},
-   {f:'plant_bushDetailed',n:60,s:[1.6,3.0],tint:0x74806a}];
+   {f:'rock_largeA',n:54,s:[2.2,4.4],tint:0x8a887c,col:1.5},
+   {f:'rock_largeC',n:48,s:[2.0,4.0],tint:0x8a887c,col:1.5},
+   {f:'rock_largeE',n:42,s:[2.2,4.6],tint:0x807d6f,col:1.6},
+   {f:'rock_tallB',n:40,s:[2.4,4.4],tint:0x787468,col:1.2,zone:'cretes'},
+   {f:'rock_tallE',n:38,s:[2.4,4.8],tint:0x787468,col:1.2,zone:'cretes'},
+   {f:'rock_tallH',n:32,s:[2.2,4.2],tint:0x84806f,col:1.1},
+   {f:'stone_tallB',n:19,s:[2.6,3.6],tint:0x8f8a74,col:1.0,zone:'lande'},
+   {f:'stone_tallD',n:16,s:[2.6,3.8],tint:0x8f8a74,col:1.0,zone:'cretes'},
+   {f:'stump_old',n:48,s:[1.8,3.0],tint:0x6a5c48},
+   {f:'stump_oldTall',n:35,s:[1.8,3.2],tint:0x80704f,zone:'foret'},
+   {f:'log',n:42,s:[1.8,3.2],tint:0x6a5c48},
+   {f:'log_large',n:29,s:[2.0,3.4],tint:0x80704f,zone:'foret'},
+   {f:'mushroom_redGroup',n:42,s:[1.2,2.4],tint:0xa08a80,zone:'fange'},
+   {f:'mushroom_tanGroup',n:42,s:[1.2,2.6],tint:0xa89e88,zone:'foret'},
+   {f:'mushroom_tanTall',n:29,s:[1.4,2.8],tint:0x9e947e,zone:'fange'},
+   {f:'tree_pineTallA',n:83,s:[4.2,6.6],tint:0x6e7a62,col:0.7,zone:'foret'},
+   {f:'tree_pineTallB',n:74,s:[4.0,6.4],tint:0x687458,col:0.7,zone:'foret'},
+   {f:'tree_pineTallD',n:64,s:[4.4,7.0],tint:0x606c52,col:0.7,zone:'cretes'},
+   {f:'tree_thin_dark',n:54,s:[3.2,5.2],tint:0x5c5a48,col:0.6,zone:'lande'},
+   {f:'tree_simple_dark',n:48,s:[3.0,5.0],tint:0x585443,col:0.6,zone:'lande'},
+   {f:'plant_bushDetailed',n:96,s:[1.6,3.0],tint:0x74806a}];
   const dummy=new THREE.Object3D(),cc=new THREE.Color();
   P.forEach(p=>{
     _rigLoad(_MFA+'env/'+p.f+'.glb').then(g=>{
@@ -439,8 +439,8 @@ function buildDecorGLB(){
         let x,z;
         if(zn){const a=rand(0,6.28),rr=Math.sqrt(Math.random())*zn.r*0.95;
           x=zn.x+Math.cos(a)*rr;z=zn.z+Math.sin(a)*rr;}
-        else{x=rand(-242,242);z=rand(-242,242);}
-        if(dist2D({x,z},CAPITALE)<40||dist2D({x,z},MORFAILLE)<14)continue;
+        else{x=rand(-365,365);z=rand(-365,365);}
+        if(dist2D({x,z},CAPITALE)<60||dist2D({x,z},MORFAILLE)<22)continue;
         if(p.col&&FLATS.some(f=>dist2D({x,z},f)<f.r+1))continue;
         spots.push({x,z,s:rand(p.s[0],p.s[1]),rot:rand(0,6.28)});
       }
@@ -483,8 +483,8 @@ function mkRat(x,z){
   return{kind:'rat',mesh:g,state:'idle',t:rand(0,3),dir:rand(0,6.28)};
 }
 function spawnCritters(){
-  for(let i=0;i<8;i++)critters.push(mkCorbeau(rand(-220,220),rand(-220,220)));
-  for(let i=0;i<9;i++)critters.push(mkRat(rand(-200,200),rand(-200,200)));
+  for(let i=0;i<12;i++)critters.push(mkCorbeau(rand(-330,330),rand(-330,330)));
+  for(let i=0;i<14;i++)critters.push(mkRat(rand(-300,300),rand(-300,300)));
 }
 function crittersTick(dt,now){
   critters.forEach(c=>{
@@ -527,7 +527,7 @@ const sunAmb=new THREE.AmbientLight(0xcabf9e,0);scene.add(sunAmb);
 let LBASE=null,FOGC_N=new THREE.Color(0x222720),FOGC_J=new THREE.Color(0x474d44),
     LUNE_N=new THREE.Color(0x9aa4c8),LUNE_J=new THREE.Color(0xcabf9e);
 const wisps=[];
-[[150,60,0x9ab86a],[175,90,0x9ab86a],[-160,-40,0x8a94c8]].forEach(([x,z,c])=>{
+[[225,90,0x9ab86a],[262,135,0x9ab86a],[-240,-60,0x8a94c8]].forEach(([x,z,c])=>{
   const l=new THREE.PointLight(c,0.9,10);l.position.set(x,1.2,z);scene.add(l);
   wisps.push({l,x,z,ph:rand(0,6)});});
 let luciole=0;
@@ -617,11 +617,11 @@ function buildMurailles(){
   });
 }
 function buildNodes(){
-  for(let i=0;i<14;i++)mkNode('os',60+rand(-70,70),-170+rand(-55,50));
-  for(let i=0;i<8;i++)mkNode('os',rand(-60,60),120+rand(-60,60));
-  for(let i=0;i<10;i++)mkNode('cendre',rand(-70,70),120+rand(-70,50));
-  for(let i=0;i<8;i++)mkNode('cendre',150+rand(-60,60),60+rand(-50,50));
-  for(let i=0;i<6;i++)mkNode('cendre',-160+rand(-60,60),-40+rand(-50,50));
+  for(let i=0;i<20;i++)mkNode('os',90+rand(-105,105),-255+rand(-82,75));
+  for(let i=0;i<12;i++)mkNode('os',rand(-90,90),180+rand(-90,90));
+  for(let i=0;i<14;i++)mkNode('cendre',rand(-105,105),180+rand(-105,75));
+  for(let i=0;i<12;i++)mkNode('cendre',225+rand(-90,90),90+rand(-75,75));
+  for(let i=0;i<9;i++)mkNode('cendre',-240+rand(-90,90),-60+rand(-75,75));
 }
 function nodesTick(dt){
   nodes.forEach(n=>{if(!n.up){n.t-=dt;if(n.t<=0){n.up=true;n.mesh.visible=true;}}});

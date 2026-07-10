@@ -163,7 +163,7 @@ export function createGame(db) {
       sess.lvl = char.lvl
       sess.wstyle = char.blob.wstyle || 'w1'
       sess.blob = char.blob
-      const pos = char.blob.pos || { x: 0, z: 126 }
+      const pos = char.blob.pos || { x: 0, z: 189 }
       sess.live = { x: pos.x, z: pos.z, f: 0, hp: char.blob.hp ?? 100, mhp: 100, anim: 'idle', mnt: 0, atk: '' }
       const players = [...sessions].filter(s => s !== sess && s.charId).map(publicState)
       send(sess, { t: 'enterok', id: char.id, blob: char.blob, players })
@@ -174,8 +174,8 @@ export function createGame(db) {
     state(sess, m) {
       if (!sess.charId) return
       if (typeof m.x === 'number' && isFinite(m.x) && typeof m.z === 'number' && isFinite(m.z)) {
-        const nx = Math.max(-260, Math.min(260, m.x))
-        const nz = Math.max(-260, Math.min(260, m.z))
+        const nx = Math.max(-390, Math.min(390, m.x))
+        const nz = Math.max(-390, Math.min(390, m.z))
         const now = Date.now()
         const dt = Math.min(0.5, (now - (sess.moveAt || now)) / 1000)
         sess.moveAt = now

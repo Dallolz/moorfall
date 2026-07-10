@@ -30,8 +30,8 @@ function esquive(){
   if(D.type==='blink'){
     fxImplode(player.pos.x,player.pos.z,1.6,CFX().light);
     spawnPart(player.pos.x,1,player.pos.z,14,{col:CFX().light,spd:2,life:0.4});
-    player.pos.x=clamp(player.pos.x+dx*D.dist,-248,248);
-    player.pos.z=clamp(player.pos.z+dz*D.dist,-248,248);
+    player.pos.x=clamp(player.pos.x+dx*D.dist,-373,373);
+    player.pos.z=clamp(player.pos.z+dz*D.dist,-373,373);
     collideObstacles(player);
     spawnPart(player.pos.x,1,player.pos.z,14,{col:CFX().light,spd:2,life:0.4});
     onde(player.pos.x,player.pos.z,CFX().light,0.7);
@@ -132,7 +132,7 @@ function bossTry(e,dP){
 
 /* ---------- dégâts légers (zones, saignements) ---------- */
 function dmgLight(e,dmg,dir,f,slow){
-  if(!e||e.state==='dead')return;
+  if(!e||e.state==='dead'||e.state==='retour')return;
   if(e.sid&&!e.owned){
     e.hitFlash=0.08;dmgNum(e.pos,dmg,'');
     mpSend({t:'ehit',id:e.sid,dmg,fx:dir?dir.x:0,fz:dir?dir.z:0,force:f||0,slow:slow||0});
@@ -243,7 +243,7 @@ function tick(now){
     else if(player.vel.y<=0&&player.pos.y-gy<0.6)player.pos.y=gy;
   }else{player.pos.y+=(gy+G.altitude-player.pos.y)*Math.min(1,dt*4);player.vel.y=0;}
   player.pos.x+=player.vel.x*dt;player.pos.z+=player.vel.z*dt;
-  player.pos.x=clamp(player.pos.x,-250,250);player.pos.z=clamp(player.pos.z,-250,250);
+  player.pos.x=clamp(player.pos.x,-375,375);player.pos.z=clamp(player.pos.z,-375,375);
   collideObstacles(player);
   if(player.stagger>0){player.vel.x*=Math.pow(0.02,dt);player.vel.z*=Math.pow(0.02,dt);}
   if(player.attack){
@@ -288,7 +288,14 @@ function tick(now){
     /* 48 u ≈ large marge au-delà du champ de la caméra ; avec le peuplement ×7,
        95 u laissait ~300 rigs actifs. Les mobs possédés (owner MP) simulent à 140. */
     if(dLOD>48){e.mesh.visible=false;if(e.bar)e.bar.el.style.display='none';
-      if(!(e.sid&&e.owned)||dLOD>140)return;}
+      if(!(e.sid&&e.owned)||dLOD>140){
+        /* hors de vue et hors simulation : évasion instantanée — le mob gelé
+           en pleine poursuite rentrerait sinon jamais au camp */
+        if(e.state!=='idle'&&e.state!=='dead'&&e.state!=='grabbed'&&!(e.sid&&!e.owned)){
+          e.state='idle';e.hp=e.maxHp;e.pos.x=e.home.x;e.pos.z=e.home.z;
+          e.vel.set(0,0,0);e.cible=null;e.aggroCd=1.5;
+          e.mesh.position.copy(e.pos);}
+        return;}}
     else{e.mesh.visible=true;
       if(e.rigKey&&!e.mesh.userData.rig&&!e.rigAsked&&rigBudget>0){
         e.rigAsked=1;rigBudget--;attachRig(e.mesh,e.rigKey,{scale:e.rigScale});}}
@@ -364,19 +371,33 @@ function tick(now){
     }else if(e.state==='stagger'){
       e.vel.x*=Math.pow(0.04,dt);e.vel.z*=Math.pow(0.04,dt);
       if(esp<1.2&&e.pos.y<=terrainH(e.pos.x,e.pos.z)+0.01)e.state='chase';
+    }else if(e.state==='retour'){
+      /* désengagé : rentre au camp, insensible, régénère — plus de trains de mobs */
+      const dxh=e.home.x-e.pos.x,dzh=e.home.z-e.pos.z,dh=Math.hypot(dxh,dzh);
+      if(dh<2){e.state='idle';e.hp=e.maxHp;e.vel.x=e.vel.z=0;e.aggroCd=1.5;}
+      else{e.vel.x=dxh/dh*vitesse*1.3;e.vel.z=dzh/dh*vitesse*1.3;
+        e.mesh.rotation.y=Math.atan2(dxh,dzh);
+        if(e.hp<e.maxHp)e.hp=Math.min(e.maxHp,e.hp+e.maxHp*dt*0.35);}
     }else if(e.state==='idle'){
-      if(dP<e.def.aggro&&!player.dead&&!G.flying&&!safe)e.state='chase';
-      else if(e.owned&&mpNearestRemote(e,e.def.aggro))e.state='chase';
-      else if(e.t>3){e.t=0;e.wander=V3(e.home.x+rand(-4,4),0,e.home.z+rand(-4,4));}
+      e.aggroCd=Math.max(0,(e.aggroCd||0)-dt);
+      if(e.aggroCd<=0&&dP<e.def.aggro&&!player.dead&&!G.flying&&!safe&&!enSecurite(e.pos))e.state='chase';
+      else if(e.aggroCd<=0&&e.owned&&mpNearestRemote(e,e.def.aggro))e.state='chase';
+      else if(e.t>3){e.t=0;
+        const wr=e.spawner?Math.max(4,e.spawner.r):5;
+        e.wander=Math.random()<0.75?V3(e.home.x+rand(-wr,wr),0,e.home.z+rand(-wr,wr)):null;}
       if(e.wander){const dx=e.wander.x-e.pos.x,dz=e.wander.z-e.pos.z,d=Math.hypot(dx,dz);
         if(d>0.5){e.vel.x=dx/d*vitesse*0.35;e.vel.z=dz/d*vitesse*0.35;
-          e.mesh.rotation.y=Math.atan2(dx,dz);}else{e.vel.x=e.vel.z=0;}}
+          e.mesh.rotation.y=Math.atan2(dx,dz);}else{e.vel.x=e.vel.z=0;e.wander=null;}}
+      else{e.vel.x*=Math.pow(0.02,dt);e.vel.z*=Math.pow(0.02,dt);}
     }else if(e.state==='chase'){
+      /* laisse : trop loin du camp, ou plus de cible → on rentre */
+      const LEASH_E=e.def.boss?46:34;
       let cible=(player.dead||G.flying||safe)?null:player,dc=cible?dP:1e9;
       allies.forEach(al=>{const d2=dist2D(e.pos,al.pos);if(d2<dc*0.7){cible=al;dc=d2;}});
       if(e.owned){const nr=mpNearestRemote(e,dc*0.7);
         if(nr){cible={remote:nr.r,pos:{x:nr.r.cur.x,z:nr.r.cur.z}};dc=nr.d;}}
-      if(!cible||dc>e.def.aggro*2.4){e.state='idle';e.vel.x=e.vel.z=0;}
+      if(!cible||dc>e.def.aggro*2.2||dist2D(e.pos,e.home)>LEASH_E){
+        e.state='retour';e.vel.x=e.vel.z=0;e.cible=null;}
       else{
         e.cible=cible;
         if(cible===player&&trySpecial(e,dP)){}
@@ -555,7 +576,7 @@ function tick(now){
         animeHumanoide(c.mesh,phase+c.phase,1.2,null);}else c.wander=null;}});
   torches.forEach(t=>{t.l.intensity=t.base+Math.sin(now/60+t.l.position.x)*0.35+rand(-0.1,0.1);
     t.flamme.scale.setScalar(0.9+rand(0,0.3));});
-  brumes.forEach(b=>{b.position.x+=b.userData.v*dt;if(b.position.x>240)b.position.x=-240;});
+  brumes.forEach(b=>{b.position.x+=b.userData.v*dt;if(b.position.x>365)b.position.x=-365;});
   pendus.forEach(p=>{p.rotation.z=Math.sin(now/900+p.userData.ph)*0.14;});
   banniers.forEach((b,i)=>{b.rotation.x=Math.sin(now/700+i)*0.08;});
   for(let i=anneaux.length-1;i>=0;i--){const a=anneaux[i];a.t+=dt;
@@ -595,7 +616,7 @@ function tick(now){
   if(uiT<=0){uiT=0.35;
     const z=zoneAt(player.pos);
     curMusZone=z.id;
-    if(dist2D(player.pos,ENVERS)<34)curMusZone='envers';
+    if(dist2D(player.pos,ENVERS)<48)curMusZone='envers';
     secretTick();
     if(curZone!==z.id){curZone=z.id;
       toast(z.nom,z.tranche);}

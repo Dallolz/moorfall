@@ -4,39 +4,41 @@
    require() CJS côté Node (module.exports en bas). Données + maths pures,
    aucune dépendance THREE ni DOM. Même graine => même monde des deux côtés. */
 const SPAWN_SEED=20260709;
-/* packs fixes : sites de quêtes et boss (positions historiques) */
+/* monde ×1.5 (v25) : toutes les coordonnées monde sont agrandies d'un facteur
+   1,5 — les packs respirent, on ne tire plus 3 groupes d'un coup. */
+/* packs fixes : sites de quêtes et boss (positions historiques ×1.5) */
 const SPAWN_FIXED=[
- {type:'creux',lvl:3,x:-24,z:104,n:5,r:11},
- {type:'creux',lvl:12,x:62,z:158,n:4,r:8},
- {type:'berger',lvl:14,x:70,z:150,n:1,r:2},
- {type:'mere',lvl:38,x:188,z:74,n:1,r:2},
- {type:'pendeur',lvl:58,x:-202,z:-62,n:1,r:2},
- {type:'roi',lvl:70,x:62,z:-208,n:1,r:2},
- /* vouivres en maraude autour du Nid (100,-88) — le nid lui-même reste vierge */
- {type:'vouivre',lvl:68,x:114,z:-102,n:1,r:4},
- {type:'vouivre',lvl:69,x:84,z:-104,n:1,r:4}];
+ {type:'creux',lvl:3,x:-36,z:156,n:5,r:11},
+ {type:'creux',lvl:12,x:93,z:237,n:4,r:8},
+ {type:'berger',lvl:14,x:105,z:225,n:1,r:2},
+ {type:'mere',lvl:38,x:282,z:111,n:1,r:2},
+ {type:'pendeur',lvl:58,x:-303,z:-93,n:1,r:2},
+ {type:'roi',lvl:70,x:93,z:-312,n:1,r:2},
+ /* vouivres en maraude autour du Nid (150,-132) — le nid lui-même reste vierge */
+ {type:'vouivre',lvl:68,x:171,z:-153,n:1,r:4},
+ {type:'vouivre',lvl:69,x:126,z:-156,n:1,r:4}];
 /* par zone : centre/rayon, tranche de niveaux, nombre de packs,
    types pondérés [type, poids]. Niveau croissant en s'éloignant de la capitale. */
 const SPAWN_ZONES=[
- {id:'lande',x:0,z:120,r:95,lvl:[2,19],packs:72,
+ {id:'lande',x:0,z:180,r:142,lvl:[2,19],packs:66,
   types:[['creux',20],['traqueur',13],['rodeuse',11],['brule',9],
          ['loup',14],['cerf',8],['limon',12],['chancre',13]]},
- {id:'fange',x:150,z:60,r:80,lvl:[21,37],packs:64,
+ {id:'fange',x:225,z:90,r:120,lvl:[21,37],packs:46,
   types:[['noyeur',15],['gonfle',10],['sangsue',11],['porteur',7],
          ['crapaud',12],['glub',10],['fille',8],['limon_pique',10],['taureau',7],['mycomage',10]]},
- {id:'foret',x:-160,z:-40,r:80,lvl:[41,57],packs:64,
+ {id:'foret',x:-240,z:-60,r:120,lvl:[41,57],packs:46,
   types:[['pendu',16],['hurleur',9],['echassier',11],['veuve',11],
          ['spectre',14],['crane',11],['chancre_mur',10],['renard',10],['roi_chancre',8]]},
- {id:'cretes',x:60,z:-170,r:80,lvl:[60,70],packs:62,
+ {id:'cretes',x:90,z:-255,r:120,lvl:[60,70],packs:44,
   types:[['ossature',14],['colosse',9],['moine',11],['choeur',9],
          ['gargouille',12],['demon',10],['demon_cendre',8],['ogre',9],['goule',9],['blafard',6]]}];
 /* zones interdites : villages, sites de quêtes, arènes (FLATS du terrain) + marge */
 const SPAWN_EXCL=[
- {x:0,z:-20,r:52},{x:0,z:120,r:24},{x:70,z:150,r:22},
- {x:105,z:45,r:18},{x:-115,z:-25,r:18},{x:35,z:-130,r:18},
- {x:-30,z:150,r:16},{x:170,z:28,r:16},{x:-140,z:-58,r:16},{x:80,z:-148,r:16},
- {x:188,z:74,r:22},{x:-202,z:-62,r:22},{x:62,z:-208,r:22},
- {x:-208,z:214,r:24},{x:226,z:224,r:38},{x:100,z:-88,r:16}];
+ {x:0,z:-30,r:78},{x:0,z:180,r:36},{x:105,z:225,r:33},
+ {x:158,z:68,r:27},{x:-172,z:-38,r:27},{x:52,z:-195,r:27},
+ {x:-45,z:225,r:24},{x:255,z:42,r:24},{x:-210,z:-87,r:24},{x:120,z:-222,r:24},
+ {x:282,z:111,r:33},{x:-303,z:-93,r:33},{x:93,z:-312,r:33},
+ {x:-312,z:321,r:36},{x:339,z:336,r:57},{x:150,z:-132,r:24}];
 /* taille de pack par type (défaut 3-6) */
 const SPAWN_PACK_N={colosse:[2,3],gonfle:[3,4],porteur:[2,3],moine:[2,3],choeur:[2,3],
  hurleur:[2,3],veuve:[3,4],
@@ -54,27 +56,29 @@ function genSpawnData(seed){
   const out=SPAWN_FIXED.map(sd=>({...sd}));
   const hyp=(ax,az,bx,bz)=>Math.hypot(ax-bx,az-bz);
   for(const zn of SPAWN_ZONES){
-    /* niveau ∝ distance à la capitale (0,-20) : le fond de zone est plus dur */
+    /* niveau ∝ distance à la capitale (0,-30) : le fond de zone est plus dur */
     let dMin=1e9,dMax=0;
     for(let a=0;a<16;a++){
-      const d=hyp(zn.x+Math.cos(a)*zn.r*0.85,zn.z+Math.sin(a)*zn.r*0.85,0,-20);
+      const d=hyp(zn.x+Math.cos(a)*zn.r*0.85,zn.z+Math.sin(a)*zn.r*0.85,0,-30);
       dMin=Math.min(dMin,d);dMax=Math.max(dMax,d);
     }
     const wTot=zn.types.reduce((s,t)=>s+t[1],0);
     let placed=0,tries=0;
-    while(placed<zn.packs&&tries<zn.packs*60){
+    while(placed<zn.packs&&tries<zn.packs*240){
       tries++;
       const ang=rng()*Math.PI*2,rad=Math.sqrt(rng())*zn.r*0.88;
       const x=Math.round(zn.x+Math.cos(ang)*rad),z=Math.round(zn.z+Math.sin(ang)*rad);
       if(SPAWN_EXCL.some(f=>hyp(x,z,f.x,f.z)<f.r))continue;
-      if(out.some(p=>hyp(x,z,p.x,p.z)<13))continue;
+      /* 22 u entre packs : hors de portée d'aggro l'un de l'autre */
+      if(out.some(p=>hyp(x,z,p.x,p.z)<22))continue;
       let w=rng()*wTot,type=zn.types[0][0];
       for(const t of zn.types){w-=t[1];if(w<=0){type=t[0];break;}}
-      const t01=Math.max(0,Math.min(1,(hyp(x,z,0,-20)-dMin)/(dMax-dMin||1)));
+      const t01=Math.max(0,Math.min(1,(hyp(x,z,0,-30)-dMin)/(dMax-dMin||1)));
       const lvl=Math.max(1,Math.round(zn.lvl[0]+(zn.lvl[1]-zn.lvl[0])*t01+(rng()*2-1)));
       const nn=SPAWN_PACK_N[type]||SPAWN_PACK_N.default;
       const n=nn[0]+Math.floor(rng()*(nn[1]-nn[0]+1));
-      out.push({type,lvl,x,z,n,r:Math.round(7+rng()*5)});
+      /* packs resserrés (6-9 u) : un groupe se lit comme un groupe */
+      out.push({type,lvl,x,z,n,r:Math.round(6+rng()*3)});
       placed++;
     }
   }

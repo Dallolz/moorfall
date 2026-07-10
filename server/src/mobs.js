@@ -14,9 +14,9 @@ export const SPAWN_DATA = genSpawnData(SPAWN_SEED)
 export function eHp(l, boss) { return Math.round((60 + l * 26) * (boss ? 6 : 1)) }
 export function eDmg(l, boss) { return Math.round((8 + l * 2.6) * (boss ? 1.8 : 1)) }
 
-const OWN_RANGE = 95
-const OWN_DROP = 110
-const VIEW_RANGE = 120
+const OWN_RANGE = 130
+const OWN_DROP = 150
+const VIEW_RANGE = 170
 const LEASH = 60
 const RESPAWN = 16
 const RESPAWN_BOSS = 60

@@ -5,54 +5,54 @@ function initMonde(){
   solRay=new THREE.Mesh(new THREE.PlaneGeometry(1400,1400),new THREE.MeshBasicMaterial({visible:false}));
   solRay.rotation.x=-Math.PI/2;scene.add(solRay);
   for(let i=0;i<18;i++){
-    const a=i/18*Math.PI*2+rand(-0.1,0.1),r=rand(250,300);
-    const m=new THREE.Mesh(new THREE.ConeGeometry(rand(28,52),rand(30,70),5),
+    const a=i/18*Math.PI*2+rand(-0.1,0.1),r=rand(375,450);
+    const m=new THREE.Mesh(new THREE.ConeGeometry(rand(40,75),rand(45,100),5),
       new THREE.MeshBasicMaterial({color:0x0d100c}));
     m.position.set(Math.cos(a)*r,0,Math.sin(a)*r);scene.add(m);}
-  hutte(-6,124,0.4);hutte(6,125,-0.5);hutte(0,112,3.1);
-  torche(-2.5,121);torche(3,120.5);torche(-1,115.5);torche(5,114);
+  hutte(-6,184,0.4);hutte(6,185,-0.5);hutte(0,172,3.1);
+  torche(-2.5,181);torche(3,180.5);torche(-1,175.5);torche(5,174);
   for(let i=0;i<9;i++){const a=i/9*6.28;pilier(RUINES.x+Math.cos(a)*8,RUINES.z+Math.sin(a)*8,rand(1.5,5));}
   const dalle=new THREE.Mesh(new THREE.CylinderGeometry(9,9,0.3,24),mat(0x2c2f29));
   dalle.position.set(RUINES.x,0.15,RUINES.z);dalle.receiveShadow=true;scene.add(dalle);
   torche(RUINES.x-3,RUINES.z);torche(RUINES.x+3,RUINES.z);
-  for(let i=0;i<70;i++){const a=rand(0,6.28),d=rand(14,88);
-    const x=Math.cos(a)*d,z=120+Math.sin(a)*d*0.8;
-    if(dist2D({x,z},RUINES)<12||dist2D({x,z},MORFAILLE)<12)continue;arbreMort(x,z);}
-  for(let i=0;i<14;i++)mare(150+rand(-60,60),60+rand(-50,50),rand(2,5));
-  for(let i=0;i<26;i++){const x=150+rand(-70,70),z=60+rand(-60,60);
-    if(dist2D({x,z},{x:105,z:45})<8)continue;arbreMort(x,z,rand(3,5));}
-  for(let i=0;i<55;i++){const x=-160+rand(-70,70),z=-40+rand(-60,60);
-    if(dist2D({x,z},{x:-115,z:-25})<8)continue;
+  for(let i=0;i<105;i++){const a=rand(0,6.28),d=rand(21,132);
+    const x=Math.cos(a)*d,z=180+Math.sin(a)*d*0.8;
+    if(dist2D({x,z},RUINES)<18||dist2D({x,z},MORFAILLE)<18)continue;arbreMort(x,z);}
+  for(let i=0;i<20;i++)mare(225+rand(-90,90),90+rand(-75,75),rand(2.5,6));
+  for(let i=0;i<40;i++){const x=225+rand(-105,105),z=90+rand(-90,90);
+    if(dist2D({x,z},{x:158,z:68})<12)continue;arbreMort(x,z,rand(3,5));}
+  for(let i=0;i<82;i++){const x=-240+rand(-105,105),z=-60+rand(-90,90);
+    if(dist2D({x,z},{x:-172,z:-38})<12)continue;
     if(Math.random()<0.22)pendu(x,z);else arbreMort(x,z,rand(5,9));}
-  for(let i=0;i<30;i++)rocher(60+rand(-70,70),-170+rand(-60,55),rand(0.6,2.2));
-  for(let i=0;i<20;i++)tasOs(60+rand(-65,65),-170+rand(-55,50));
-  for(let i=0;i<8;i++)pilier(60+rand(-50,50),-170+rand(-45,45),rand(4,9),rand(0.7,1.1));
-  for(let i=0;i<26;i++)rocher(rand(-240,240),rand(-240,240)*0.4-120,rand(0.5,1.4));
-  for(let i=0;i<16;i++){
-    const m=new THREE.Mesh(new THREE.PlaneGeometry(rand(10,24),rand(6,12)),
+  for(let i=0;i<45;i++)rocher(90+rand(-105,105),-255+rand(-90,82),rand(0.6,2.2));
+  for(let i=0;i<30;i++)tasOs(90+rand(-97,97),-255+rand(-82,75));
+  for(let i=0;i<12;i++)pilier(90+rand(-75,75),-255+rand(-67,67),rand(4,9),rand(0.7,1.1));
+  for(let i=0;i<40;i++)rocher(rand(-365,365),rand(-365,365)*0.4-180,rand(0.5,1.4));
+  for(let i=0;i<20;i++){
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(rand(14,36),rand(9,18)),
       new THREE.MeshBasicMaterial({color:0x39413a,transparent:true,opacity:0.05,depthWrite:false}));
-    m.rotation.x=-Math.PI/2;m.position.set(rand(-220,220),rand(0.3,1.2),rand(-220,220));
+    m.rotation.x=-Math.PI/2;m.position.set(rand(-330,330),rand(0.3,1.2),rand(-330,330));
     m.userData.v=rand(0.15,0.5);scene.add(m);brumes.push(m);}
   construireCapitale();
-  npc('maud','Maud la Veilleuse','Gardienne des quêtes — elle ne cligne pas des yeux',-2,122,0x9a8a70,0x4a3d2a);
-  npc('osric','Osric','Colporteur — il compte vos pièces des yeux',4,122.5,0x8f7d64,0x2e3a30);
-  npc('ivane','Sénéchale Ivane','La voix de Valcierge — froide comme ses murs',0,-27,0x9a8a72,0x3a2c3a);
-  npc('grivel','Grivel','Marchand de la capitale — tout a un prix, il les connaît tous',-8,-14,0x8f7d64,0x2c3a34);
-  npc('berthe','Berthe','Maîtresse des montures de Valcierge',12,-26,0x93826a,0x40342a);
-  npc('maitre',"Maître d'armes Aldren","Il n'enseigne qu'aux éprouvés (niveau 50)",8,-12,0x8a7a66,0x33302c);
-  npc('sarment','Le Vieux Sarment','Ermite — il enterre ce que les autres vendent',-30,150,0x8a8068,0x2c3226);
-  npc('noyee','La Noyée','Elle est remontée. Pas eux.',170,28,0x8a9488,0x2a3834);
-  npc('cordier','Le Cordier','Chaque corde de cette forêt est passée par ses mains',-140,-58,0x8f8270,0x33302a);
-  npc('muet','Le Frère Muet','Il ne dira rien. Sur les Crêtes, c\'est une sagesse.',80,-148,0x9a9280,0x38362e);
-  npc('ferraille',"Ferraille l'Ossier","Forgeron d'os — il retrempe ce que la lande abandonne",-14,-30,0x8a7a62,0x3c342a);
-  torche(-30,152,1.4);torche(170,30,1.4);torche(-140,-56,1.4);torche(80,-146,1.4);
-  npc('lom','Padre Lom','Prêtre du camp de la Fange — sa croix penche',105,45,0x8a7a62,0x3a3226);
-  npc('ashka','Veuve Ashka','Elle vit là où les arbres portent',-115,-25,0x9a8a78,0x2a2a32);
-  npc('ossian','Frère Ossian','Il prie au pied des grands os',35,-130,0x9a927c,0x38342a);
-  torche(105,47,1.6);torche(-115,-23,1.6);torche(35,-128,1.6);
-  const g1=humanoide({peau:0x8a7a62,habit:0x3a3e46,arme:'marteau'});g1.position.set(-2.5,0,4.5);scene.add(g1);
-  const g2=humanoide({peau:0x8a7a62,habit:0x3a3e46,arme:'marteau'});g2.position.set(2.5,0,4.5);g2.rotation.y=Math.PI;scene.add(g2);
-  for(let i=0;i<8;i++)citoyen(rand(-12,12),-20+rand(-8,14));
+  npc('maud','Maud la Veilleuse','Gardienne des quêtes — elle ne cligne pas des yeux',-2,182,0x9a8a70,0x4a3d2a);
+  npc('osric','Osric','Colporteur — il compte vos pièces des yeux',4,182.5,0x8f7d64,0x2e3a30);
+  npc('ivane','Sénéchale Ivane','La voix de Valcierge — froide comme ses murs',0,-37,0x9a8a72,0x3a2c3a);
+  npc('grivel','Grivel','Marchand de la capitale — tout a un prix, il les connaît tous',-8,-24,0x8f7d64,0x2c3a34);
+  npc('berthe','Berthe','Maîtresse des montures de Valcierge',12,-36,0x93826a,0x40342a);
+  npc('maitre',"Maître d'armes Aldren","Il n'enseigne qu'aux éprouvés (niveau 50)",8,-22,0x8a7a66,0x33302c);
+  npc('sarment','Le Vieux Sarment','Ermite — il enterre ce que les autres vendent',-45,225,0x8a8068,0x2c3226);
+  npc('noyee','La Noyée','Elle est remontée. Pas eux.',255,42,0x8a9488,0x2a3834);
+  npc('cordier','Le Cordier','Chaque corde de cette forêt est passée par ses mains',-210,-87,0x8f8270,0x33302a);
+  npc('muet','Le Frère Muet','Il ne dira rien. Sur les Crêtes, c\'est une sagesse.',120,-222,0x9a9280,0x38362e);
+  npc('ferraille',"Ferraille l'Ossier","Forgeron d'os — il retrempe ce que la lande abandonne",-14,-40,0x8a7a62,0x3c342a);
+  torche(-45,227,1.4);torche(255,44,1.4);torche(-210,-85,1.4);torche(120,-220,1.4);
+  npc('lom','Padre Lom','Prêtre du camp de la Fange — sa croix penche',158,68,0x8a7a62,0x3a3226);
+  npc('ashka','Veuve Ashka','Elle vit là où les arbres portent',-172,-38,0x9a8a78,0x2a2a32);
+  npc('ossian','Frère Ossian','Il prie au pied des grands os',52,-195,0x9a927c,0x38342a);
+  torche(158,70,1.6);torche(-172,-36,1.6);torche(52,-193,1.6);
+  const g1=humanoide({peau:0x8a7a62,habit:0x3a3e46,arme:'marteau'});g1.position.set(-2.5,0,-5.5);scene.add(g1);
+  const g2=humanoide({peau:0x8a7a62,habit:0x3a3e46,arme:'marteau'});g2.position.set(2.5,0,-5.5);g2.rotation.y=Math.PI;scene.add(g2);
+  for(let i=0;i<8;i++)citoyen(rand(-12,12),-30+rand(-8,14));
   buildReliefs();
   buildSecret();
   buildNature();
@@ -358,6 +358,7 @@ function mpMobNetTick(e,dt){
 function mpNearestRemote(e,maxD){
   let best=null,bd=maxD;
   MP.remotes.forEach(r=>{
+    if(enSecurite({x:r.cur.x,z:r.cur.z}))return; // sanctuaire : intouchable
     const d=Math.hypot(e.pos.x-r.cur.x,e.pos.z-r.cur.z);
     if(d<bd){bd=d;best=r;}
   });
@@ -365,7 +366,7 @@ function mpNearestRemote(e,maxD){
 }
 function mpApplyRemoteHit(m){
   const e=MP.mobs.get(m.id);
-  if(!e||e.state==='dead'||!e.owned)return;
+  if(!e||e.state==='dead'||e.state==='retour'||!e.owned)return;
   const dir=V3(m.fx,0,m.fz);
   e.hp-=m.dmg;e.hitFlash=0.12;
   dmgNum(e.pos,m.dmg,'');
@@ -400,7 +401,7 @@ function mpSpawnRemote(p){
   const gold=(MP.party||[]).some(mb=>mb.id===p.id);
   const tag=mpNameTag(p.name||'?',gold?'#e8c05a':'#e8dfc8');
   mesh.add(tag);
-  const x=p.x??0,z=p.z??126;
+  const x=p.x??0,z=p.z??189;
   mesh.position.set(x,terrainH(x,z),z);
   scene.add(mesh);
   MP.remotes.set(p.id,{id:p.id,name:p.name,classe:p.classe,mesh,tag,gold,

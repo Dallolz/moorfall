@@ -146,7 +146,7 @@ function ouvrirCarte(){
   <div style="text-align:center"><button class="btn ghost" onclick="MOOR.fermer()">Fermer (M)</button></div>`;
   pan.style.display='block';panOuvert='carte';
   const cv=el('carte-cv'),ctx=cv.getContext('2d');
-  const W=640,S=W/520,cx=w=>(w+260)*S,cz=w=>(w+260)*S;
+  const W=640,S=W/780,cx=w=>(w+390)*S,cz=w=>(w+390)*S;
   function draw(){
     ctx.fillStyle='#0c0e0a';ctx.fillRect(0,0,W,W);
     // zones
@@ -160,16 +160,16 @@ function ouvrirCarte(){
       ctx.fillText(z.tranche,cx(z.x),cz(z.z)-z.r*S+8);});
     // routes
     ctx.strokeStyle='rgba(140,130,100,.25)';ctx.setLineDash([4,5]);ctx.lineWidth=2;
-    [[MORFAILLE,CAPITALE],[CAPITALE,{x:105,z:45}],[CAPITALE,{x:-115,z:-25}],[CAPITALE,{x:35,z:-130}]].forEach(([a,b])=>{
+    [[MORFAILLE,CAPITALE],[CAPITALE,{x:158,z:68}],[CAPITALE,{x:-172,z:-38}],[CAPITALE,{x:52,z:-195}]].forEach(([a,b])=>{
       ctx.beginPath();ctx.moveTo(cx(a.x),cz(a.z));ctx.lineTo(cx(b.x),cz(b.z));ctx.stroke();});
     ctx.setLineDash([]);
     // marqueurs
     ctx.font='15px sans-serif';ctx.fillStyle='#d8c26a';
     ctx.fillText('★',cx(CAPITALE.x),cz(CAPITALE.z)+5);
     ctx.fillText('⌂',cx(MORFAILLE.x),cz(MORFAILLE.z)+5);
-    [[105,45],[-115,-25],[35,-130]].forEach(([x,z])=>ctx.fillText('▲',cx(x),cz(z)+5));
+    [[158,68],[-172,-38],[52,-195]].forEach(([x,z])=>ctx.fillText('▲',cx(x),cz(z)+5));
     ctx.fillStyle='#a03424';
-    [[RUINES.x,RUINES.z],[188,74],[-202,-62],[62,-208]].forEach(([x,z])=>ctx.fillText('☠',cx(x),cz(z)+5));
+    [[RUINES.x,RUINES.z],[282,111],[-303,-93],[93,-312]].forEach(([x,z])=>ctx.fillText('☠',cx(x),cz(z)+5));
     // joueur
     ctx.beginPath();ctx.arc(cx(player.pos.x),cz(player.pos.z),6,0,6.28);
     ctx.fillStyle='#e8ddc4';ctx.fill();ctx.strokeStyle='#8a7448';ctx.lineWidth=2;ctx.stroke();

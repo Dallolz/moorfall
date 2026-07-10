@@ -1,6 +1,6 @@
 'use strict';
 /* ---------- joueur ---------- */
-const player={pos:V3(0,0,126),vel:V3(0,0,0),mass:80,radius:0.45,hp:100,
+const player={pos:V3(0,0,189),vel:V3(0,0,0),mass:80,radius:0.45,hp:100,
   facing:0,moveTarget:null,targetEnemy:null,pendingNpc:null,attack:null,dash:null,grab:null,
   cdR:0,invuln:0,stagger:0,dead:false,mesh:null};
 let capeLight=null;

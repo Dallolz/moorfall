@@ -127,6 +127,7 @@ function xpFalloff(elvl){
 function applyDot(e,dps,dur){e.dot={dps,t:dur,tick:0.5};}
 function hurtEnemy(e,dmg,dir,force,opts={}){
   if(!e||e.state==='dead')return;
+  if(e.state==='retour'&&!e.def.boss){dmgNum(e.pos,'insensible','');return;}
   if(e.sid&&!e.owned){
     // mob simulé par un autre joueur : visuels optimistes + relais serveur
     const critR=Math.random()<statCrit();if(critR)dmg=Math.round(dmg*1.8);
@@ -147,6 +148,10 @@ function hurtEnemy(e,dmg,dir,force,opts={}){
   const crit=Math.random()<statCrit();if(crit)dmg=Math.round(dmg*1.8);
   force*=statImpact();
   e.hp-=dmg;e.hitFlash=0.12;
+  /* aggro à l'impact + assistance de meute : les congénères proches réagissent */
+  if(e.state==='idle')e.state='chase';
+  enemies.forEach(o=>{if(o!==e&&o.state==='idle'&&(!o.sid||o.owned)
+    &&(o.spawner&&o.spawner===e.spawner?dist2D(o.pos,e.pos)<16:dist2D(o.pos,e.pos)<9))o.state='chase';});
   dmgNum(e.pos,dmg,crit?'crit':'');
   sang(e.pos.x,e.pos.z);
   spawnPart(e.pos.x,1.2,e.pos.z,crit?24:10,
@@ -242,7 +247,7 @@ function mortJoueur(){
 function respawn(){
   player.dead=false;player.hp=Math.round(maxHp()*0.6);rigRevive(player.mesh);
   const pt=(G.visited.capitale&&dist2D(player.pos,CAPITALE)<dist2D(player.pos,MORFAILLE))?
-    {x:CAPITALE.x,z:CAPITALE.z+8}:{x:0,z:126};
+    {x:CAPITALE.x,z:CAPITALE.z+8}:{x:0,z:189};
   player.pos.set(pt.x,0,pt.z);player.vel.set(0,0,0);G.flying=false;G.altitude=0;MP.tp=1;
   const perte=Math.floor(G.gold*0.08);G.gold-=perte;
   if(perte>0)toast('Vous vous relevez','Réparations : -'+perte+' or');

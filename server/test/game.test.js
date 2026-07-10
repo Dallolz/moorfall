@@ -63,14 +63,14 @@ test('full flow: register, create, enter, see each other, chat, persist', async 
   const join = await a.next('join')
   assert.equal(join.p.name, 'Bor')
 
-  b.send({ t: 'state', x: 12.5, z: 120, f: 1.2, hp: 90, anim: 'run', tp: 1 })
+  b.send({ t: 'state', x: 12.5, z: 183, f: 1.2, hp: 90, anim: 'run', tp: 1 })
   let seen
   for (let i = 0; i < 20 && !seen; i++) {
     const snap = await a.next('snap')
     seen = snap.ps.find(p => p.id === enterB.id && p.x === 12.5)
   }
   assert.ok(seen, 'A never saw B at x=12.5 in snapshots')
-  assert.equal(seen.z, 120)
+  assert.equal(seen.z, 183)
 
   b.send({ t: 'chat', msg: 'salut !' })
   const chat = await a.next('chat')
@@ -116,7 +116,7 @@ test('movement speed is clamped without tp flag', async t => {
     last = snap.ps[0] || last
   }
   assert.ok(last, 'B visible in snapshots')
-  const dist = Math.hypot(last.x - 0, last.z - 126)
+  const dist = Math.hypot(last.x - 0, last.z - 189)
   assert.ok(dist < 30, `wild jump clamped, moved ${dist.toFixed(1)}u`)
   a.close(); b.close()
 })

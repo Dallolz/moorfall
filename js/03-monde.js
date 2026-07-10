@@ -10,7 +10,7 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x121711);
 scene.fog=new THREE.FogExp2(0x181d16,0.0095);
-const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,900);
+const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,1300);
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
 addEventListener('resize',resize);resize();
 
@@ -31,14 +31,14 @@ function skyTexture(){
     x.fillRect(rand(0,64),rand(0,260),rand(.5,1.4),rand(.5,1.4));}
   const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.repeat.set(6,1);return t;
 }
-const ciel=new THREE.Mesh(new THREE.SphereGeometry(420,24,16),
+const ciel=new THREE.Mesh(new THREE.SphereGeometry(620,24,16),
   new THREE.MeshBasicMaterial({map:skyTexture(),side:THREE.BackSide,fog:false}));
 scene.add(ciel);
-const moon=new THREE.Mesh(new THREE.CircleGeometry(15,26),new THREE.MeshBasicMaterial({color:0x9aa88c,fog:false}));
-moon.position.set(-180,140,-320);moon.lookAt(0,0,0);scene.add(moon);
-const moonHalo=new THREE.Mesh(new THREE.CircleGeometry(26,26),
+const moon=new THREE.Mesh(new THREE.CircleGeometry(22,26),new THREE.MeshBasicMaterial({color:0x9aa88c,fog:false}));
+moon.position.set(-260,205,-470);moon.lookAt(0,0,0);scene.add(moon);
+const moonHalo=new THREE.Mesh(new THREE.CircleGeometry(38,26),
   new THREE.MeshBasicMaterial({color:0x3a4436,transparent:true,opacity:0.3,fog:false}));
-moonHalo.position.set(-181,140,-322);moonHalo.lookAt(0,0,0);scene.add(moonHalo);
+moonHalo.position.set(-261,205,-473);moonHalo.lookAt(0,0,0);scene.add(moonHalo);
 
 function groundTexture(){
   const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
@@ -49,21 +49,36 @@ function groundTexture(){
   for(let i=0;i<160;i++){x.strokeStyle=`rgba(${irand(40,64)},${irand(44,62)},${irand(24,36)},.5)`;
     const px=rand(0,512),py=rand(0,512);
     x.beginPath();x.moveTo(px,py);x.lineTo(px+rand(-4,4),py-rand(3,8));x.stroke();}
-  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(26,26);return t;
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(39,39);return t;
 }
 function mat(c,rough=0.9){return new THREE.MeshStandardMaterial({color:c,roughness:rough});}
 
-/* ---------- zones ---------- */
+/* ---------- zones (monde ×1.5 au v25) ---------- */
 const ZONES=[
- {id:'lande', nom:'Lande de Cendrefiel', tranche:'niveaux 1–20', x:0,z:120,r:95, tint:0x1a1d14},
- {id:'capitale', nom:'Valcierge, la Capitale', tranche:'sanctuaire', x:0,z:-20,r:36, tint:0x1e1c16},
- {id:'fange', nom:"Fange d'Ychor", tranche:'niveaux 20–40', x:150,z:60,r:80, tint:0x161e14},
- {id:'foret', nom:'Forêt des Pendus', tranche:'niveaux 40–60', x:-160,z:-40,r:80, tint:0x14161a},
- {id:'cretes', nom:"Crêtes de l'Ossuaire", tranche:'niveaux 60–70', x:60,z:-170,r:80, tint:0x1c1c1a}];
-const CAPITALE=ZONES[1], MORFAILLE={x:0,z:120}, RUINES={x:70,z:150};
+ {id:'lande', nom:'Lande de Cendrefiel', tranche:'niveaux 1–20', x:0,z:180,r:142, tint:0x1a1d14},
+ {id:'capitale', nom:'Valcierge, la Capitale', tranche:'sanctuaire', x:0,z:-30,r:54, tint:0x1e1c16},
+ {id:'fange', nom:"Fange d'Ychor", tranche:'niveaux 20–40', x:225,z:90,r:120, tint:0x161e14},
+ {id:'foret', nom:'Forêt des Pendus', tranche:'niveaux 40–60', x:-240,z:-60,r:120, tint:0x14161a},
+ {id:'cretes', nom:"Crêtes de l'Ossuaire", tranche:'niveaux 60–70', x:90,z:-255,r:120, tint:0x1c1c1a}];
+const CAPITALE=ZONES[1], MORFAILLE={x:0,z:180}, RUINES={x:105,z:225};
 function zoneAt(p){let best=ZONES[0],bd=1e9;
   ZONES.forEach(z=>{const d=dist2D(p,z)/z.r;if(d<bd){bd=d;best=z;}});return best;}
-function enSecurite(p){return dist2D(p,CAPITALE)<CAPITALE.r||dist2D(p,MORFAILLE)<16;}
+/* sanctuaires : aucune créature n'y aggro ni n'y pénètre — capitale,
+   villages et chaque camp de quêtes */
+const SAFE_ZONES=[
+ {x:0,z:-30,r:54},          // Valcierge
+ {x:0,z:180,r:26},          // Morfaille
+ {x:158,z:68,r:16},         // camp du Padre Lom (Fange)
+ {x:-172,z:-38,r:16},       // Veuve Ashka (Forêt)
+ {x:52,z:-195,r:16},        // Frère Ossian (Crêtes)
+ {x:-45,z:225,r:14},        // le Vieux Sarment
+ {x:255,z:42,r:14},         // la Noyée
+ {x:-210,z:-87,r:14},       // le Cordier
+ {x:120,z:-222,r:14}];      // le Frère Muet
+function enSecurite(p){
+  for(let i=0;i<SAFE_ZONES.length;i++)if(dist2D(p,SAFE_ZONES[i])<SAFE_ZONES[i].r)return true;
+  return false;
+}
 
 /* ---------- constructeurs de décor ---------- */
 function arbreMort(x,z,h0){
@@ -316,11 +331,11 @@ const MOUNT_DEF=[null,
 
 /* ---------- relief : hauteur analytique du terrain ---------- */
 const FLATS=[
- {x:0,z:-20,r:46},{x:0,z:120,r:18},{x:RUINES.x,z:RUINES.z,r:16},
- {x:105,z:45,r:12},{x:-115,z:-25,r:12},{x:35,z:-130,r:12},
- {x:-30,z:150,r:10},{x:170,z:28,r:10},{x:-140,z:-58,r:10},{x:80,z:-148,r:10},
- {x:188,z:74,r:14},{x:-202,z:-62,r:14},{x:62,z:-208,r:14},
- {x:-208,z:214,r:16},{x:226,z:224,r:32},{x:100,z:-88,r:10}];
+ {x:0,z:-30,r:69},{x:0,z:180,r:27},{x:RUINES.x,z:RUINES.z,r:24},
+ {x:158,z:68,r:18},{x:-172,z:-38,r:18},{x:52,z:-195,r:18},
+ {x:-45,z:225,r:15},{x:255,z:42,r:15},{x:-210,z:-87,r:15},{x:120,z:-222,r:15},
+ {x:282,z:111,r:21},{x:-303,z:-93,r:21},{x:93,z:-312,r:21},
+ {x:-312,z:321,r:24},{x:339,z:336,r:48},{x:150,z:-132,r:15}];
 function terrainH(x,z){
   let h=Math.sin(x*0.021)*Math.cos(z*0.017)*1.15
        +Math.sin(x*0.047+z*0.033)*0.6
@@ -337,8 +352,8 @@ function terrainH(x,z){
 }
 /* ---------- sol vivant : relief + couleurs de vertex par zone ---------- */
 function buildSol(){
-  const SEG=140;
-  const geo=new THREE.PlaneGeometry(560,560,SEG,SEG);
+  const SEG=200;
+  const geo=new THREE.PlaneGeometry(840,840,SEG,SEG);
   const pos=geo.attributes.position;
   const cols=new Float32Array(pos.count*3);
   const c=new THREE.Color(),base=new THREE.Color();
