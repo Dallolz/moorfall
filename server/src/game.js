@@ -10,6 +10,7 @@ const NAME_RE = /^[\p{L}\p{N} _'-]{2,16}$/u
 const MAX_CHARS_PER_ACCOUNT = 8
 const CHAT_WINDOW_MS = 5000
 const CHAT_MAX_IN_WINDOW = 5
+const SAY_RANGE = 40
 const MAX_SPEED = 25 // u/s, dash et montures compris
 const MAX_PLAYER_HIT = 2000
 const TP_COOLDOWN_MS = 4000
@@ -275,16 +276,35 @@ export function createGame(db) {
       sess.chatTimes = (sess.chatTimes || []).filter(t => now - t < CHAT_WINDOW_MS)
       if (sess.chatTimes.length >= CHAT_MAX_IN_WINDOW) return err(sess, 'ratelimit', 'doucement sur le chat')
       sess.chatTimes.push(now)
-      if (m.p) {
+      const ch = m.p ? 'p' : typeof m.ch === 'string' ? m.ch : 'say'
+      if (ch === 'p') {
         const pid = partyOf(sess.charId)
         if (!pid) return err(sess, 'noparty', 'tu n\'es pas dans un groupe')
         for (const cid of parties.get(pid)) {
           const ms = sessOf(cid)
-          if (ms) send(ms, { t: 'chat', from: sess.charName, msg, p: 1 })
+          if (ms) send(ms, { t: 'chat', from: sess.charName, msg, p: 1, ch: 'p' })
         }
         return
       }
-      broadcast({ t: 'chat', from: sess.charName, msg })
+      if (ch === 'w') {
+        const target = [...sessions].find(s => s.charId && s.charName.toLowerCase() === String(m.to || '').toLowerCase())
+        if (!target || target === sess) return err(sess, 'noplayer', 'joueur introuvable')
+        send(target, { t: 'chat', from: sess.charName, msg, ch: 'w' })
+        send(sess, { t: 'chat', from: sess.charName, to: target.charName, msg, ch: 'w', self: 1 })
+        if (target.afk) send(sess, { t: 'chat', from: target.charName, msg: '[absent] ' + (target.afkMsg || 'de retour bientôt'), ch: 'w' })
+        return
+      }
+      if (ch === 'world') return broadcast({ t: 'chat', from: sess.charName, msg, ch: 'world' })
+      for (const s of sessions) {
+        if (s.charId && Math.hypot(s.live.x - sess.live.x, s.live.z - sess.live.z) <= SAY_RANGE)
+          send(s, { t: 'chat', from: sess.charName, msg, ch: 'say', id: sess.charId })
+      }
+    },
+    afk(sess, m) {
+      if (!sess.charId) return
+      sess.afk = !sess.afk
+      sess.afkMsg = sess.afk && typeof m.msg === 'string' ? m.msg.trim().slice(0, 80) : ''
+      send(sess, { t: 'chat', from: '⚔', msg: sess.afk ? 'Tu es maintenant absent.' : 'Te revoilà.' })
     },
   }
 

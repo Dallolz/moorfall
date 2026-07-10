@@ -217,7 +217,7 @@ function mpHandle(m){
   }
   else if(m.t==='pupdate'){MP.party=m.members||[];majGroupe();mpRetagRemotes();
     if(MP.party.length<2)mpChatLine('⚔','Groupe dissous.',1);}
-  else if(m.t==='chat')mpChatLine(m.from,m.msg,m.p);
+  else if(m.t==='chat')mpChatMsg(m);
   else if(m.t==='err')toast('Serveur',m.msg||m.code);
 }
 /* --- groupes --- */
@@ -225,9 +225,43 @@ function mpChatCommand(v){
   if(v.startsWith('/invite ')){mpSend({t:'pinvite',name:v.slice(8).trim()});return;}
   if(v==='/accept'){mpSend({t:'paccept'});return;}
   if(v==='/leave'){mpSend({t:'pleave'});return;}
-  if(v.startsWith('/p ')){mpSend({t:'chat',msg:v.slice(3).slice(0,200),p:1});return;}
-  if(v.startsWith('/')){mpChatLine('⚔','Commandes : /invite <pseudo> · /accept · /leave · /p <message>',1);return;}
+  if(v.startsWith('/p ')){mpSend({t:'chat',msg:v.slice(3).slice(0,200),ch:'p'});return;}
+  const monde=v.match(/^\/(monde|m) (.+)/);
+  if(monde){mpSend({t:'chat',msg:monde[2].slice(0,200),ch:'world'});return;}
+  const murmure=v.match(/^\/t (\S+) (.+)/);
+  if(murmure){mpSend({t:'chat',msg:murmure[2].slice(0,200),ch:'w',to:murmure[1]});return;}
+  if(v.startsWith('/r ')){
+    if(!MP.lastFrom){mpChatLine('⚔','Personne ne t\'a murmuré.',1);return;}
+    mpSend({t:'chat',msg:v.slice(3).slice(0,200),ch:'w',to:MP.lastFrom});return;}
+  if(v==='/afk'||v.startsWith('/afk ')){mpSend({t:'afk',msg:v.slice(5)});return;}
+  if(v.startsWith('/')){mpChatLine('⚔','Commandes : /invite <pseudo> · /accept · /leave · /p <msg> · /monde <msg> · /t <pseudo> <msg> · /r <msg> · /afk',1);return;}
   mpSend({t:'chat',msg:v.slice(0,200)});
+}
+/* canaux : say (proximité, bulle), world, w (murmure), p (groupe) */
+function mpChatMsg(m){
+  const ch=m.ch||(m.p?'p':'say');
+  if(ch==='w'){
+    if(m.self)mpChatLine('À '+m.to,m.msg,0,'#c98ad8');
+    else{MP.lastFrom=m.from;mpChatLine('De '+m.from,m.msg,0,'#c98ad8');}
+  }else if(ch==='world')mpChatLine('[Monde] '+m.from,m.msg,0,'#8fb8d8');
+  else if(ch==='p')mpChatLine(m.from,m.msg,1);
+  else{mpChatLine(m.from,m.msg);if(m.id)mpBulle(m.id,m.msg);}
+}
+function mpBulle(id,msg){
+  const mesh=id===G.charId?player.mesh:(MP.remotes.get(id)||{}).mesh;
+  if(!mesh)return;
+  if(mesh.userData.bulle){mesh.remove(mesh.userData.bulle);clearTimeout(mesh.userData.bulleT);}
+  const cv=document.createElement('canvas');cv.width=512;cv.height=96;
+  const g=cv.getContext('2d');g.font='500 24px Georgia,serif';g.textAlign='center';
+  const txt=msg.length>44?msg.slice(0,43)+'…':msg;
+  const w=Math.min(492,g.measureText(txt).width+30);
+  g.fillStyle='rgba(20,18,12,0.82)';g.fillRect(256-w/2,20,w,44);
+  g.strokeStyle='#5d5949';g.strokeRect(256-w/2,20,w,44);
+  g.fillStyle='#e8dfc8';g.fillText(txt,256,49);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false}));
+  s.scale.set(6,1.125,1);s.position.y=3.4;s.renderOrder=9;
+  mesh.add(s);mesh.userData.bulle=s;
+  mesh.userData.bulleT=setTimeout(()=>{mesh.remove(s);mesh.userData.bulle=null;},5000);
 }
 function majGroupe(){
   let box=el('mp-party');
@@ -488,7 +522,7 @@ function mpChatInit(){
   box.style.cssText='position:fixed;left:12px;bottom:96px;width:320px;max-height:170px;overflow:hidden;font-size:12.5px;color:#e8dfc8;text-shadow:0 1px 2px #000;pointer-events:none;z-index:60';
   document.body.appendChild(box);
   const inp=document.createElement('input');inp.id='mp-chat-in';inp.maxLength=200;
-  inp.placeholder='Entrée pour envoyer · Échap pour fermer';
+  inp.placeholder='Entrée : parler (proximité) · /monde à tous · /t <pseudo> · Échap pour fermer';
   inp.style.cssText='position:fixed;left:12px;bottom:66px;width:320px;display:none;z-index:61;background:rgba(20,18,12,0.92);border:1px solid #5d5949;color:#e8dfc8;padding:6px 8px;font-size:13px';
   inp.addEventListener('keydown',e=>{
     e.stopPropagation();
@@ -497,11 +531,12 @@ function mpChatInit(){
   });
   document.body.appendChild(inp);
 }
-function mpChatLine(from,msg,party){
+function mpChatLine(from,msg,party,color){
   const box=el('mp-chat');if(!box)return;
   const d=document.createElement('div');
   d.textContent=(party?'[Groupe] ':'')+from+' : '+msg;
   if(party)d.style.color='#e8c05a';
+  else if(color)d.style.color=color;
   box.appendChild(d);
   while(box.children.length>12)box.firstChild.remove();
 }
@@ -577,7 +612,7 @@ async function construireListePersos(){
 (async()=>{
   const ver=document.createElement('div');
   ver.style.cssText='position:absolute;bottom:8px;right:12px;font-size:11px;color:#5d5949';
-  ver.textContent='v23 — multijoueur alpha';
+  ver.textContent='v24 — multijoueur alpha';
   el('titre').appendChild(ver);
   if(!store.persistant){
     const w=document.createElement('div');

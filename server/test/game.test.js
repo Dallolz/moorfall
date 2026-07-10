@@ -280,3 +280,64 @@ test('rejects malformed and oversized messages without crashing', async t => {
   await c.next('authok')
   c.close()
 })
+
+test('chat channels: say is proximity-scoped, world reaches everyone', async t => {
+  const srv = await startServer({ port: 0, dbPath: ':memory:', snapMs: 30 })
+  t.after(() => srv.close())
+  const A = await enterWorld(srv.port, 'Alice', 'Aza')
+  const B = await enterWorld(srv.port, 'Bob', 'Bor')
+  const C = await enterWorld(srv.port, 'Carl', 'Cor')
+  C.c.send({ t: 'state', x: 200, z: -200, tp: 1 }) // hors de portée de voix
+  await new Promise(r => setTimeout(r, 100))
+
+  // say (défaut) : A et B (spawn commun) le voient avec l'id pour la bulle, pas C
+  A.c.send({ t: 'chat', msg: 'par ici' })
+  const sayB = await B.c.next('chat')
+  assert.equal(sayB.msg, 'par ici')
+  assert.equal(sayB.ch, 'say')
+  assert.equal(sayB.id, A.id, "l'id du parleur accompagne le say (bulle)")
+  assert.equal((await A.c.next('chat')).msg, 'par ici', 'écho au parleur')
+
+  // world : tout le monde, y compris C au bout du monde
+  A.c.send({ t: 'chat', msg: 'à tous', ch: 'world' })
+  const wC = await C.c.next('chat')
+  assert.equal(wC.msg, 'à tous')
+  assert.equal(wC.ch, 'world')
+  // C n'a jamais reçu le say : son premier chat reçu était le world
+  A.c.close(); B.c.close(); C.c.close()
+})
+
+test('chat channels: whispers route by name, echo to sender, afk auto-reply', async t => {
+  const srv = await startServer({ port: 0, dbPath: ':memory:', snapMs: 30 })
+  t.after(() => srv.close())
+  const A = await enterWorld(srv.port, 'Alice', 'Aza')
+  const B = await enterWorld(srv.port, 'Bob', 'Bor')
+
+  A.c.send({ t: 'chat', msg: 'psst', ch: 'w', to: 'bor' }) // insensible à la casse
+  const wB = await B.c.next('chat')
+  assert.equal(wB.ch, 'w')
+  assert.equal(wB.from, 'Aza')
+  assert.equal(wB.msg, 'psst')
+  const echo = await A.c.next('chat')
+  assert.equal(echo.self, 1)
+  assert.equal(echo.to, 'Bor')
+
+  A.c.send({ t: 'chat', msg: 'allo ?', ch: 'w', to: 'Personne' })
+  assert.equal((await A.c.next('err')).code, 'noplayer')
+  A.c.send({ t: 'chat', msg: 'à moi-même', ch: 'w', to: 'Aza' })
+  assert.equal((await A.c.next('err')).code, 'noplayer', 'pas de murmure à soi-même')
+
+  // AFK : B se marque absent, A lui murmure, A reçoit l'auto-réponse
+  B.c.send({ t: 'afk', msg: 'parti manger' })
+  assert.match((await B.c.next('chat')).msg, /absent/i)
+  A.c.send({ t: 'chat', msg: 'tu es là ?', ch: 'w', to: 'Bor' })
+  await A.c.next('chat') // écho
+  const auto = await A.c.next('chat')
+  assert.equal(auto.ch, 'w')
+  assert.equal(auto.from, 'Bor')
+  assert.match(auto.msg, /parti manger/)
+  assert.equal((await B.c.next('chat')).msg, 'tu es là ?', 'B reçoit quand même le murmure')
+  B.c.send({ t: 'afk' })
+  assert.match((await B.c.next('chat')).msg, /revoilà/i)
+  A.c.close(); B.c.close()
+})
