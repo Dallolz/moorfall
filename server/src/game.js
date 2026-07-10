@@ -16,6 +16,8 @@ const MAX_PLAYER_HIT = 2000
 const TP_COOLDOWN_MS = 4000
 const PARTY_MAX = 5
 const PARTY_XP_RANGE = 80
+const FX_RANGE = 90
+const FX_MAX_PER_SEC = 25
 
 export function createGame(db) {
   const sessions = new Set()
@@ -298,6 +300,25 @@ export function createGame(db) {
       for (const s of sessions) {
         if (s.charId && Math.hypot(s.live.x - sess.live.x, s.live.z - sess.live.z) <= SAY_RANGE)
           send(s, { t: 'chat', from: sess.charName, msg, ch: 'say', id: sess.charId })
+      }
+    },
+    // effets visuels éphémères (casts, projectiles, tirs des mobs simulés) :
+    // pur relais de proximité, aucun état ni dégât côté serveur
+    fx(sess, m) {
+      if (!sess.charId) return
+      const now = Date.now()
+      sess.fxTimes = (sess.fxTimes || []).filter(t => now - t < 1000)
+      if (sess.fxTimes.length >= FX_MAX_PER_SEC) return
+      sess.fxTimes.push(now)
+      const out = { t: 'fx', id: sess.charId, k: String(m.k || '').slice(0, 12) }
+      if (typeof m.i === 'string' && m.i.length <= 8) out.i = m.i
+      if (typeof m.f === 'number' && isFinite(m.f)) out.f = m.f
+      if (typeof m.eid === 'string' && m.eid.length <= 12) out.eid = m.eid
+      if (typeof m.n === 'number') out.n = Math.max(1, Math.min(12, m.n | 0))
+      if (m.s) out.s = 1
+      for (const s of sessions) {
+        if (s === sess || !s.charId) continue
+        if (Math.hypot(s.live.x - sess.live.x, s.live.z - sess.live.z) <= FX_RANGE) send(s, out)
       }
     },
     afk(sess, m) {

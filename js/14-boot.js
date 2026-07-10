@@ -206,8 +206,16 @@ function mpHandle(m){
   else if(m.t==='esnap')(m.ents||[]).forEach(u=>{
     const e=MP.mobs.get(u.id);
     if(!e)mpMobSpawn(u);
-    else if(!e.owned&&e.state!=='dead'){e.net.x=u.x;e.net.z=u.z;e.net.f=u.f;e.net.st=u.st;
+    else if(!e.owned&&e.state!=='dead'){
+      /* coup porté par un autre joueur : baisse de PV vue dans le flux →
+         éclat visuel local (sauf si c'est notre propre coup optimiste) */
+      if(u.hp<e.hp-0.5&&e.mesh.visible&&performance.now()-(e._optT||0)>400){
+        e.hitFlash=0.1;e.punch=Math.max(e.punch||0,0.1);
+        sang(e.pos.x,e.pos.z,0.8);
+        spawnPart(e.pos.x,1.2,e.pos.z,8,{col:0x6e1812,spd:3,life:0.45});}
+      e.net.x=u.x;e.net.z=u.z;e.net.f=u.f;e.net.st=u.st;
       e.hp=u.hp;e.maxHp=u.mhp||e.maxHp;}});
+  else if(m.t==='fx')mpFx(m);
   else if(m.t==='ehitf')mpApplyRemoteHit(m);
   else if(m.t==='ehitp'){if(G.started&&!player.dead)hurtPlayer(m.dmg,V3(m.fx,0,m.fz),m.force||200);}
   else if(m.t==='edie')mpRemoteDeath(m);
@@ -219,6 +227,31 @@ function mpHandle(m){
     if(MP.party.length<2)mpChatLine('⚔','Groupe dissous.',1);}
   else if(m.t==='chat')mpChatMsg(m);
   else if(m.t==='err')toast('Serveur',m.msg||m.code);
+}
+/* --- écho des effets visuels des autres clients --- */
+function mpFx(m){
+  if(!G.started)return;
+  if(m.eid){ // tir/télégraphe d'un mob simulé par son owner
+    const e=MP.mobs.get(m.eid);if(!e||e.state==='dead'||!e.mesh.visible)return;
+    if(m.k==='econe'){fxSector(e.pos,m.f||0,7,0.7,0x8e2a1c);return;}
+    const n=m.n||1;
+    for(let si=0;si<n;si++){
+      const aa=m.k==='estorm'?si/n*6.283:(m.f||0)+(si-(n-1)/2)*0.2;
+      tirer({from:e.pos,dir:V3(Math.sin(aa),0,Math.cos(aa)),dmg:0,force:0,ally:false,ghost:true,
+        col:m.k==='estorm'?0xd8d2be:(m.s?0x8a94c8:0x8a5c4a),speed:16});}
+    return;}
+  const r=MP.remotes.get(m.id);if(!r)return;
+  const pos=V3(r.cur.x,0,r.cur.z);
+  if(dist2D(pos,player.pos)>75)return; // hors de vue, on économise
+  pos.y=terrainH(pos.x,pos.z);
+  const cfx=CLASSFX[r.classe]||CLASSFX.ecorcheur;
+  const facing=m.f!==undefined?m.f:r.cur.f;
+  if(m.k==='dash'){fxImplode(pos.x,pos.z,1.6,cfx.light);
+    spawnPart(pos.x,1,pos.z,12,{col:cfx.light,spd:2,life:0.4});return;}
+  if(m.k==='shot'){const c=CLASSES[r.classe]||{};
+    tirer({from:pos,dir:V3(Math.sin(facing),0,Math.cos(facing)),dmg:0,force:0,ally:true,ghost:true,
+      col:c.projCol||0xd8c26a,speed:28});return;}
+  if(m.k==='cast'&&m.i){const sp=spellById(m.i);if(sp)fxRemoteCast(sp,pos,facing,cfx,r.classe);}
 }
 /* --- groupes --- */
 function mpChatCommand(v){
@@ -642,7 +675,7 @@ async function construireListePersos(){
 })();
 addEventListener('beforeunload',()=>{if(G.started&&!player.dead)save();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.started&&!player.dead)save();});
-window.MOOR={_dbg:()=>({G,player,enemies,npcs,questItems,previewSet,majApparence,demarrer,RIG_CLASS,prevMesh:()=>prevMesh,genItem,genRelique,recomputeEQ,majHud}),
+window.MOOR={_dbg:()=>({G,player,enemies,npcs,questItems,previewSet,majApparence,demarrer,RIG_CLASS,prevMesh:()=>prevMesh,genItem,genRelique,recomputeEQ,majHud,projectiles,fxTemp,zonesFx,MP}),
   fermer:fermerPanneau,acheter,acheterMonture,gamble,accepterQuete,rendreQuete,respawn,
   equipSpell,equipItem,vendreItem,choisirSpec,applyTemplate,saveTpl,applyTpl,
   talUp,talReset,choisirSub,

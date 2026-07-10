@@ -131,6 +131,7 @@ function hurtEnemy(e,dmg,dir,force,opts={}){
   if(e.sid&&!e.owned){
     // mob simulé par un autre joueur : visuels optimistes + relais serveur
     const critR=Math.random()<statCrit();if(critR)dmg=Math.round(dmg*1.8);
+    e._optT=performance.now();
     e.hitFlash=0.12;dmgNum(e.pos,dmg,critR?'crit':'');
     sang(e.pos.x,e.pos.z);
     spawnPart(e.pos.x,1.2,e.pos.z,critR?24:10,
@@ -261,6 +262,7 @@ function tirer(o){
   scene.add(m);
   projectiles.push({mesh:m,pos:m.position,vel:o.dir.clone().multiplyScalar(o.speed||24),
     dmg:o.dmg,force:o.force||300,ally:!!o.ally,pierce:o.pierce||0,pull:!!o.pull,slowP:!!o.slowP,
+    ghost:!!o.ghost, // écho visuel d'un autre client : traverse tout, zéro dégât
     explode:o.explode||null,tags:o.tags||['proj'],t:0,life:o.life||1.6,hit:new Set()});
   sfx('tir');
 }

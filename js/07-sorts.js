@@ -278,8 +278,47 @@ function castSpell(slot){
   if(ok){
     if(EQ.legs.echo&&Math.random()<0.15){toast('Écho','Le sort ne consomme pas sa recharge');}
     else G.cds[id]=sp.cd*cdrMult();
+    if(MP.on)mpSend({t:'fx',k:'cast',i:sp.i,f:+player.facing.toFixed(3)});
   }
   majHud();
+}
+/* ---------- écho visuel des sorts des autres joueurs ----------
+   Reçu via le relais « fx » du serveur : on rejoue les visuels du sort
+   (palette de la classe du lanceur), jamais ses dégâts. */
+function fxRemoteCast(sp,pos,facing,cfx,classe){
+  const p=sp.p||{};
+  const fwd=()=>V3(Math.sin(facing),0,Math.cos(facing));
+  switch(sp.t){
+    case 'melee':fxSector(pos,facing,p.r||2.5,p.arc===-1?Math.PI:1.1,cfx.arc);break;
+    case 'cone':{const f=fwd();
+      fxSector(pos,facing,p.r||4,1.25,cfx.cone);
+      spawnPart(pos.x+f.x*1.6,1.2,pos.z+f.z*1.6,12,
+        {col:cfx.cone,spd:1.6,dx:f.x*9,dz:f.z*9,grav:2,drag:0.92,life:0.42});break;}
+    case 'aoe':{const c=p.off?pos.clone().add(fwd().multiplyScalar(p.off)):pos;
+      fxBurst(c.x,c.z,p.r||4,cfx.burst);
+      spawnPart(c.x,0.4,c.z,20,{col:cfx.burst,spd:2.4,up:7,grav:8.5,life:0.7});
+      onde(c.x,c.z,cfx.burst,1+((p.r||4)/6));sfx('slam',0.5);break;}
+    case 'proj':{const n=p.count||1,cl=CLASSES[classe]||{};
+      fxFlash(pos,facing,cl.projCol||0xd8c26a);
+      for(let i=0;i<n;i++){
+        const a=facing+(n>1?(i-(n-1)/2)*(p.spread||0.15):0);
+        tirer({from:pos,dir:V3(Math.sin(a),0,Math.cos(a)),dmg:0,force:0,ally:true,ghost:true,
+          col:cl.projCol||0xd8c26a,speed:p.sp||28});}break;}
+    case 'zone':{const c=p.off?pos.clone().add(fwd().multiplyScalar(p.off)):pos.clone();
+      fxBurst(c.x,c.z,p.r||4,cfx.burst);
+      const mz=new THREE.Mesh(new THREE.RingGeometry((p.r||4)*0.85,p.r||4,30),
+        new THREE.MeshBasicMaterial({color:cfx.burst,transparent:true,opacity:0.4,side:THREE.DoubleSide}));
+      mz.rotation.x=-Math.PI/2;mz.position.set(c.x,terrainH(c.x,c.z)+0.05,c.z);scene.add(mz);
+      zonesFx.push({x:c.x,z:c.z,r:p.r||4,t:p.dur||5,tick:0,dmg:0,f:0,ghost:true,mesh:mz});break;}
+    case 'pull':fxImplode(pos.x,pos.z,p.r||8,cfx.pull);sfx('slam',0.4);break;
+    case 'buff':fxImplode(pos.x,pos.z,2.6,p.k==='armor'?0x6a7a8a:0xc8a84a);
+      onde(pos.x,pos.z,p.k==='armor'?0x6a7a8a:0xc8a84a,0.8);break;
+    case 'heal':fxImplode(pos.x,pos.z,2.2,0x9db07f);break;
+    case 'raise':onde(pos.x,pos.z,0x8a9a6a);
+      spawnPart(pos.x,0.6,pos.z,10,{col:0x8a9a6a,spd:1.4,up:2,grav:-1,life:0.7});break;
+    case 'detonate':fxBurst(pos.x,pos.z,p.r||4,0xc84a2c);
+      onde(pos.x,pos.z,0xc84a2c,1.1);sfx('slam',0.5);break;
+  }
 }
 function attaqueBase(){
   if(player.attack||player.dash||player.grab)return;
@@ -288,7 +327,8 @@ function attaqueBase(){
   if(CL().ranged){
     player.attack={t:0,dur:0.5,hitAt:0.2,done:false,anim:'shoot',fn:()=>{
       tirer({from:player.pos,dir:faceDir(),dmg:Math.round(baseDmg()*tagMult(['proj'])),
-        force:240,ally:true,col:CL().projCol,speed:28,tags:['proj']});}};
+        force:240,ally:true,col:CL().projCol,speed:28,tags:['proj']});
+      if(MP.on)mpSend({t:'fx',k:'shot',f:+player.facing.toFixed(3)});}};
   }else{
     player.attack={t:0,dur:0.36,hitAt:0.17,done:false,anim:'slash',fn:()=>{
       const fwd=faceDir();

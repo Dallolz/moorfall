@@ -341,3 +341,42 @@ test('chat channels: whispers route by name, echo to sender, afk auto-reply', as
   assert.match((await B.c.next('chat')).msg, /revoilà/i)
   A.c.close(); B.c.close()
 })
+
+test('fx relay: proximity-scoped, fields sanitized, sender excluded', async t => {
+  const srv = await startServer({ port: 0, dbPath: ':memory:', snapMs: 30 })
+  t.after(() => srv.close())
+  const A = await enterWorld(srv.port, 'Alice', 'Aza')
+  const B = await enterWorld(srv.port, 'Bob', 'Bor')
+  const C = await enterWorld(srv.port, 'Carl', 'Cor')
+  C.c.send({ t: 'state', x: 200, z: -200, tp: 1 }) // hors de portée (90u)
+  await new Promise(r => setTimeout(r, 100))
+
+  A.c.send({ t: 'fx', k: 'cast', i: 'ec05', f: 1.25, n: 99 })
+  const fxB = await B.c.next('fx')
+  assert.equal(fxB.id, A.id)
+  assert.equal(fxB.k, 'cast')
+  assert.equal(fxB.i, 'ec05')
+  assert.equal(fxB.f, 1.25)
+  assert.equal(fxB.n, 12, 'n plafonné à 12')
+
+  // C au bout du monde ne reçoit pas le cast ; le world chat (envoyé après)
+  // arrive, puis plus aucun fx ne doit se présenter
+  A.c.send({ t: 'chat', msg: 'sonde', ch: 'world' })
+  assert.equal((await C.c.next('chat')).msg, 'sonde')
+  await assert.rejects(C.c.next('fx', 300), /timeout/, 'C hors de portée ne reçoit pas le fx')
+  A.c.close(); B.c.close(); C.c.close()
+})
+
+test('fx relay: eshot passthrough for owned mob volleys', async t => {
+  const srv = await startServer({ port: 0, dbPath: ':memory:', snapMs: 30 })
+  t.after(() => srv.close())
+  const A = await enterWorld(srv.port, 'Alice', 'Aza')
+  const B = await enterWorld(srv.port, 'Bob', 'Bor')
+  A.c.send({ t: 'fx', k: 'eshot', eid: 'e42', f: -0.5, n: 3, s: 1 })
+  const fx = await B.c.next('fx')
+  assert.equal(fx.k, 'eshot')
+  assert.equal(fx.eid, 'e42')
+  assert.equal(fx.n, 3)
+  assert.equal(fx.s, 1)
+  A.c.close(); B.c.close()
+})

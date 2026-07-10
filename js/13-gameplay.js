@@ -27,6 +27,7 @@ function esquive(){
   else{dx=Math.sin(player.facing);dz=Math.cos(player.facing);}
   player.invuln=Math.max(player.invuln,0.35);
   sfxCast({t:'dash'});
+  if(MP.on)mpSend({t:'fx',k:'dash',f:+player.facing.toFixed(3)});
   if(D.type==='blink'){
     fxImplode(player.pos.x,player.pos.z,1.6,CFX().light);
     spawnPart(player.pos.x,1,player.pos.z,14,{col:CFX().light,spd:2,life:0.4});
@@ -118,7 +119,9 @@ function bossTry(e,dP){
   if(a.k==='slam'){e.state='slam';e.castT=1.0;e.vel.x=e.vel.z=0;return true;}
   if(a.k==='cone'){e.state='bcast';e.castT=0.8;e.castK={k:'cone'};e.vel.x=e.vel.z=0;
     e.mesh.rotation.y=Math.atan2(player.pos.x-e.pos.x,player.pos.z-e.pos.z);
-    fxSector(e.pos,e.mesh.rotation.y,7,0.7,0x8e2a1c);return true;}
+    fxSector(e.pos,e.mesh.rotation.y,7,0.7,0x8e2a1c);
+    if(MP.on&&e.sid&&e.owned)mpSend({t:'fx',k:'econe',eid:e.sid,f:+e.mesh.rotation.y.toFixed(3)});
+    return true;}
   if(a.k==='pull'){
     const dir=V3(e.pos.x-player.pos.x,0,e.pos.z-player.pos.z).normalize();
     impulse(player,dir,1450,0.25);addBuff('spd',0.55,1.6);
@@ -134,6 +137,7 @@ function bossTry(e,dP){
 function dmgLight(e,dmg,dir,f,slow){
   if(!e||e.state==='dead'||e.state==='retour')return;
   if(e.sid&&!e.owned){
+    e._optT=performance.now();
     e.hitFlash=0.08;dmgNum(e.pos,dmg,'');
     mpSend({t:'ehit',id:e.sid,dmg,fx:dir?dir.x:0,fz:dir?dir.z:0,force:f||0,slow:slow||0});
     return;
@@ -262,7 +266,7 @@ function tick(now){
   for(let i=zonesFx.length-1;i>=0;i--){
     const z=zonesFx[i];z.t-=dt;z.tick-=dt;
     if(z.tick<=0){z.tick=0.5;
-      [...enemies].forEach(e=>{if(dist2D(e.pos,{x:z.x,z:z.z})<z.r){
+      if(!z.ghost)[...enemies].forEach(e=>{if(dist2D(e.pos,{x:z.x,z:z.z})<z.r){
         const dd=V3(e.pos.x-z.x,0,e.pos.z-z.z).normalize();
         dmgLight(e,Math.max(1,Math.round(z.dmg*0.4)),dd,z.f*0.4,z.slow);}});}
     z.mesh.material.opacity=0.4*Math.min(1,z.t);
@@ -360,9 +364,11 @@ function tick(now){
           for(let si=0;si<(K.n||3);si++){
             const aa=baseA+(si-((K.n||3)-1)/2)*0.16;
             tirer({from:e.pos,dir:V3(Math.sin(aa),0,Math.cos(aa)),dmg:e.dmg,force:420,ally:false,
-              col:K.slow?0x8a94c8:0x8a5c4a,speed:17,slowP:K.slow});}}
+              col:K.slow?0x8a94c8:0x8a5c4a,speed:17,slowP:K.slow});}
+          if(MP.on&&e.sid&&e.owned)mpSend({t:'fx',k:'eshot',eid:e.sid,f:+baseA.toFixed(3),n:K.n||3,s:K.slow?1:0});}
         else if(K.k==='storm'){for(let si=0;si<(K.n||8);si++){const aa=si/(K.n||8)*6.283;
-          tirer({from:e.pos,dir:V3(Math.sin(aa),0,Math.cos(aa)),dmg:e.dmg,force:420,ally:false,col:0xd8d2be,speed:14});}}
+          tirer({from:e.pos,dir:V3(Math.sin(aa),0,Math.cos(aa)),dmg:e.dmg,force:420,ally:false,col:0xd8d2be,speed:14});}
+          if(MP.on&&e.sid&&e.owned)mpSend({t:'fx',k:'estorm',eid:e.sid,n:K.n||8});}
         else if(K.k==='cone'){
           const fwd=V3(Math.sin(e.mesh.rotation.y),0,Math.cos(e.mesh.rotation.y));
           const to=V3(player.pos.x-e.pos.x,0,player.pos.z-e.pos.z);const dpp=to.length();to.normalize();
@@ -425,6 +431,7 @@ function tick(now){
             const aa=baseA+(si-(nsh-1)/2)*0.2;
             tirer({from:e.pos,dir:V3(Math.sin(aa),0,Math.cos(aa)),dmg:e.dmg,force:420,ally:false,
               col:e.def.webs?0x8a94c8:0x8a5c4a,speed:16,slowP:e.def.webs});}
+          if(MP.on&&e.sid&&e.owned)mpSend({t:'fx',k:'eshot',eid:e.sid,f:+baseA.toFixed(3),n:nsh,s:e.def.webs?1:0});
         }else if(dC<2.2){
           const dir=V3(cible.pos.x-e.pos.x,0,cible.pos.z-e.pos.z).normalize();
           if(cible===player){hurtPlayer(e.dmg,dir,e.def.boss?620:260);
@@ -486,7 +493,8 @@ function tick(now){
     if(p.ally&&Math.random()<0.7)spawnPart(p.pos.x,p.pos.y,p.pos.z,1,
       {col:p.mesh.material.color.getHex(),spd:0.25,up:0,grav:0.4,drag:0.9,life:0.3});
     let dead=p.t>p.life;
-    if(p.ally){
+    if(p.ghost){/* écho distant : purement visuel */}
+    else if(p.ally){
       for(const e of enemies){
         if(p.hit.has(e))continue;
         if(dist2D(e.pos,p.pos)<e.radius+0.45){

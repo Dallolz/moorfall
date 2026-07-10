@@ -22,7 +22,8 @@ export async function startServer({ port = 8787, dbPath = 'moorfall.db', snapMs 
       res.writeHead(200, { 'content-type': 'application/json' })
       return res.end(JSON.stringify({ ok: true, players: game.playerCount() }))
     }
-    const path = req.url === '/' ? '/index.html' : req.url.split('?')[0]
+    const clean = req.url.split('?')[0]
+    const path = clean === '/' ? '/index.html' : clean
     const type = STATIC_TYPES[path.slice(path.lastIndexOf('.'))]
     if (type && !path.includes('..') && (path === '/index.html' || path.startsWith('/js/') || path.startsWith('/css/'))) {
       try {
