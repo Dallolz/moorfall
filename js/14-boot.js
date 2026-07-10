@@ -173,7 +173,8 @@ function mpConnect(){
     const url=mpUrl();
     if(!url)return rej(new Error('serveur non configuré pour cet hébergement'));
     const ws=new WebSocket(url);
-    const to=setTimeout(()=>{try{ws.close();}catch(e){}rej(new Error('serveur injoignable'));},6000);
+    // 15 s : laisse au serveur mutualisé le temps d'un démarrage à froid
+    const to=setTimeout(()=>{try{ws.close();}catch(e){}rej(new Error('serveur injoignable'));},15000);
     ws.onopen=()=>{clearTimeout(to);MP.ws=ws;res(ws);};
     ws.onerror=()=>{clearTimeout(to);rej(new Error('serveur injoignable'));};
     ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(err){return;}mpHandle(m);};
@@ -444,8 +445,16 @@ async function mpLogin(register){
     st.textContent='⚔ Connecté en tant que '+name+' — tes personnages vivent sur le serveur.';
     el('mp-form').style.display='none';
     mpChatInit();
-    construireListePersos();
+    await construireListePersos();
+    titreEtape('perso');
   }catch(e){st.textContent='⚠ '+e.message;}
+}
+/* écran titre en deux étapes : compte d'abord, puis persos/création */
+function titreEtape(etape){
+  const perso=etape==='perso';
+  ['titre-nom','preview-cv','classes','wstyles','persos'].forEach(id=>{
+    const e=el(id);if(e)e.style.display=perso?'':'none';});
+  el('btn-nouveau').parentElement.style.display=perso?'':'none';
 }
 function construireConnexion(){
   const box=document.createElement('div');box.id='mp-box';
@@ -461,12 +470,17 @@ function construireConnexion(){
     const pw=document.createElement('input');pw.id='mp-pass';pw.type='password';pw.maxLength=64;pw.placeholder='Mot de passe';pw.style.width='120px';
     const b1=document.createElement('button');b1.className='btn mini';b1.textContent='Connexion';b1.onclick=()=>mpLogin(false);
     const b2=document.createElement('button');b2.className='btn mini ghost';b2.textContent='Créer un compte';b2.onclick=()=>mpLogin(true);
+    const b3=document.createElement('button');b3.className='btn mini ghost';b3.textContent='Jouer hors ligne';
+    b3.onclick=()=>{el('mp-form').style.display='none';
+      st.textContent='Partie locale — la progression reste dans ce navigateur.';
+      titreEtape('perso');};
     pw.addEventListener('keydown',e=>{if(e.key==='Enter')mpLogin(false);});
-    f.append(ps,pw,b1,b2);box.appendChild(f);
+    f.append(ps,pw,b1,b2,b3);box.appendChild(f);
   }else{
     st.textContent='Mode en ligne indisponible ici (serveur non configuré) — partie locale uniquement.';
   }
   el('persos').before(box);
+  titreEtape(mpUrl()?'connexion':'perso');
 }
 function mpChatInit(){
   if(el('mp-chat'))return;
@@ -563,7 +577,7 @@ async function construireListePersos(){
 (async()=>{
   const ver=document.createElement('div');
   ver.style.cssText='position:absolute;bottom:8px;right:12px;font-size:11px;color:#5d5949';
-  ver.textContent='v15 — multijoueur alpha';
+  ver.textContent='v23 — multijoueur alpha';
   el('titre').appendChild(ver);
   if(!store.persistant){
     const w=document.createElement('div');
