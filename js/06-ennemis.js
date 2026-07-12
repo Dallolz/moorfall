@@ -25,7 +25,7 @@ const ENEMY_DEF={
  /* --- bestiaire Quaternius (rig propre, peau/habit = fallback sans réseau) --- */
  loup:{nom:'Loup famélique',peau:0x4a4038,habit:0x2c2620,scale:1,mass:60,speed:5.2,aggro:13,beast:true,sp:'lunge',model:'q_loup'},
  renard:{nom:'Renard blafard',peau:0x6a5240,habit:0x3a2c20,scale:0.85,mass:36,speed:5.6,aggro:12,beast:true,sp:'lunge',model:'q_renard',mtint:0xb0a8b8},
- cerf:{nom:'Cerf noirci',peau:0x3c342a,habit:0x241e16,scale:1.15,mass:150,speed:4.6,aggro:8,beast:true,model:'q_cerf',mtint:0x6a625a},
+ cerf:{nom:'Cerf noirci',peau:0x3c342a,habit:0x241e16,scale:1.15,mass:150,speed:4.6,aggro:8,beast:true,craintif:true,model:'q_cerf',mtint:0x6a625a},
  taureau:{nom:'Taureau vaseux',peau:0x3a3e34,habit:0x22261e,scale:1.3,mass:320,speed:4.0,aggro:9,beast:true,sp:'slam',model:'q_taureau',mtint:0x7a8272},
  limon:{nom:'Limon de cendre',peau:0x707a5a,habit:0x4a5240,scale:0.9,mass:90,speed:1.9,aggro:8,model:'q_limon',mtint:0x9a9a86},
  chancre:{nom:'Chancre errant',peau:0x8a7a62,habit:0x5a4e3c,scale:0.9,mass:80,speed:2.3,aggro:9,model:'q_chancre'},
@@ -44,23 +44,35 @@ const ENEMY_DEF={
  ogre:{nom:'Ogre charnier',peau:0x6a7a52,habit:0x424e34,scale:1.3,mass:320,speed:3.0,aggro:11,sp:'slam',model:'q_ogre'},
  goule:{nom:'Goule verdâtre',peau:0x7a8a5a,habit:0x4a563a,scale:1,mass:85,speed:3.4,aggro:11,model:'q_goule'},
  blafard:{nom:'Colosse blafard',peau:0xc8c4b8,habit:0x8a8678,scale:1.35,mass:360,speed:2.6,aggro:10,sp:'slam',model:'q_blafard'},
- vouivre:{nom:'Vouivre des crêtes',peau:0x5a4a3a,habit:0x382e24,scale:1.25,mass:300,speed:4.2,aggro:16,tir:true,model:'q_vouivre'}};
+ vouivre:{nom:'Vouivre des crêtes',peau:0x5a4a3a,habit:0x382e24,scale:1.25,mass:300,speed:4.2,aggro:16,tir:true,model:'q_vouivre'},
+ /* --- familles adaptées par biotope (v27) : mêmes souches, autres teintes,
+    autres duretés — le monde explique pourquoi elles sont là --- */
+ mycon:{nom:'Mycon pâle',peau:0x9a9478,habit:0x6a6452,scale:0.9,mass:75,speed:2.0,aggro:8,model:'q_chancre',mtint:0xd8d0b8},
+ mycon_rouge:{nom:'Mycon écarlate',peau:0x8a5a4a,habit:0x5a3a30,scale:1.0,mass:95,speed:2.6,aggro:10,explose:true,model:'q_chancre',mtint:0xc85a48},
+ mycon_noir:{nom:'Mycon noir',peau:0x4a4452,habit:0x2e2a34,scale:1.15,mass:150,speed:2.4,aggro:11,sp:'slam',model:'q_chancre_mur',mtint:0x564e62},
+ patriarche:{nom:'Patriarche des Spores',peau:0x8a6a8a,habit:0x54405a,scale:1.45,mass:300,speed:2.8,aggro:12,sp:'slam',model:'q_roi_chancre',mtint:0xb08ac0},
+ loup_noir:{nom:'Loup des Pendus',peau:0x2a2632,habit:0x1c1a22,scale:1.05,mass:70,speed:5.4,aggro:13,beast:true,sp:'lunge',model:'q_loup',mtint:0x3a3448},
+ loup_cendre:{nom:'Loup cendré',peau:0x8a867c,habit:0x565248,scale:1.1,mass:80,speed:5.4,aggro:13,beast:true,sp:'lunge',model:'q_loup',mtint:0xc8c4b8}};
 function eHp(l,boss){return Math.round((60+l*26)*(boss?6:1));}
 function eDmg(l,boss){return Math.round((8+l*2.6)*(boss?1.8:1));}
 function eXp(l,boss){return Math.max(1,Math.round((0.4+l*0.18)*(boss?8:1)));}
-function spawnEnemy(type,lvl,x,z,spawner){
+function spawnEnemy(type,lvl,x,z,spawner,elite){
   const d=ENEMY_DEF[type];
+  const isElite=!d.boss&&!!(elite||(spawner&&spawner.elite));
   /* gabarit individuel : ±11%, déterministe par position de spawn pour que
      tous les clients d'un monde partagé voient la même silhouette */
-  const jit=d.boss?1:0.89+(((Math.round(x*7)+Math.round(z*13))%97+97)%97)/97*0.22;
+  const jit=d.boss?1:(0.89+(((Math.round(x*7)+Math.round(z*13))%97+97)%97)/97*0.22)*(isElite?1.13:1);
   const sc=d.scale*jit;
-  const m=humanoide({peau:d.peau,habit:d.habit,scale:sc,arme:d.arme,yeux:d.boss?0x8e2a1c:0x0a0a0a});
+  const m=humanoide({peau:d.peau,habit:d.habit,scale:sc,arme:d.arme,
+    yeux:(d.boss||isElite)?0x8e2a1c:0x0a0a0a});
   m.position.set(x,terrainH(x,z),z);scene.add(m);
   if(type==='berger'||type==='roi'){
     [-1,1].forEach(s=>{const c=new THREE.Mesh(new THREE.ConeGeometry(0.1,1.1,4),mat(0x4a4436));
       c.position.set(0.35*s*d.scale,1.9*d.scale,0);c.rotation.z=-0.6*s;m.add(c);});}
+  const eliteM=isElite?1.7:1;
   const e={type,def:d,lvl,mesh:m,pos:m.position,vel:V3(0,0,0),mass:d.mass,radius:0.4*sc,
-    hp:eHp(lvl,d.boss),maxHp:eHp(lvl,d.boss),dmg:eDmg(lvl,d.boss),
+    hp:Math.round(eHp(lvl,d.boss)*eliteM),maxHp:Math.round(eHp(lvl,d.boss)*eliteM),
+    dmg:Math.round(eDmg(lvl,d.boss)*(isElite?1.25:1)),elite:isElite,
     state:'idle',t:rand(0,3),atkT:0,home:{x,z},spawner,twitch:rand(0,10),slowT:0,hitFlash:0,dot:null};
   /* pas de PointLight par porteur : à ~25 porteurs générés, l'éclairage
      forward de r128 s'effondre — la lanterne brille par émissive seule */
@@ -151,8 +163,10 @@ function hurtEnemy(e,dmg,dir,force,opts={}){
   e.hp-=dmg;e.hitFlash=0.12;
   /* aggro à l'impact + assistance de meute : les congénères proches réagissent */
   if(e.state==='idle')e.state='chase';
+  e.rageT=6;
   enemies.forEach(o=>{if(o!==e&&o.state==='idle'&&(!o.sid||o.owned)
-    &&(o.spawner&&o.spawner===e.spawner?dist2D(o.pos,e.pos)<16:dist2D(o.pos,e.pos)<9))o.state='chase';});
+    &&(o.spawner&&o.spawner===e.spawner?dist2D(o.pos,e.pos)<16:dist2D(o.pos,e.pos)<9)){
+    o.state='chase';o.rageT=4;}});
   dmgNum(e.pos,dmg,crit?'crit':'');
   sang(e.pos.x,e.pos.z);
   spawnPart(e.pos.x,1.2,e.pos.z,crit?24:10,
@@ -208,10 +222,10 @@ function tueEnemy(e,dir,force,remote){
   recompensesKill(e);
 }
 function recompensesKill(e){
-  const orGain=Math.round((irand(1,3)+e.lvl*0.4)*(1+0.05*talRank('r2')));
+  const orGain=Math.round((irand(1,3)+e.lvl*0.4)*(e.elite?2.5:1)*(1+0.05*talRank('r2')));
   G.gold+=orGain;sfx('or');
   dmgNum(e.pos,'+'+orGain+' or','soin');
-  gainXp(Math.round(eXp(e.lvl,e.def.boss)*xpFalloff(e.lvl)));
+  gainXp(Math.round(eXp(e.lvl,e.def.boss)*(e.elite?1.8:1)*xpFalloff(e.lvl)));
   G.kills++;
   if(EQ.legs.moisson){Object.keys(G.cds).forEach(k=>G.cds[k]=Math.max(0,G.cds[k]-1));}
   if(talRank('r6'))Object.keys(G.cds).forEach(k=>G.cds[k]=Math.max(0,G.cds[k]-0.5));

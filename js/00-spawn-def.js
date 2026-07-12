@@ -25,13 +25,36 @@ const SPAWN_ZONES=[
          ['loup',14],['cerf',8],['limon',12],['chancre',13]]},
  {id:'fange',x:225,z:90,r:120,lvl:[21,37],packs:46,
   types:[['noyeur',15],['gonfle',10],['sangsue',11],['porteur',7],
-         ['crapaud',12],['glub',10],['fille',8],['limon_pique',10],['taureau',7],['mycomage',10]]},
+         ['crapaud',12],['glub',10],['fille',8],['limon_pique',10],['taureau',7],['mycomage',8],['mycon',6]]},
  {id:'foret',x:-240,z:-60,r:120,lvl:[41,57],packs:46,
   types:[['pendu',16],['hurleur',9],['echassier',11],['veuve',11],
-         ['spectre',14],['crane',11],['chancre_mur',10],['renard',10],['roi_chancre',8]]},
+         ['spectre',14],['crane',11],['chancre_mur',10],['renard',8],['loup_noir',5],['roi_chancre',8]]},
  {id:'cretes',x:90,z:-255,r:120,lvl:[60,70],packs:44,
   types:[['ossature',14],['colosse',9],['moine',11],['choeur',9],
-         ['gargouille',12],['demon',10],['demon_cendre',8],['ogre',9],['goule',9],['blafard',6]]}];
+         ['gargouille',12],['demon',10],['demon_cendre',8],['ogre',9],['goule',9],['loup_cendre',5],['blafard',6]]}];
+/* sites thématiques : des tanières denses, graduées en couleur/niveau/rareté —
+   la même famille de créatures, adaptée à son coin de monde. */
+const SPAWN_SITES=[
+ {id:'spores',x:285,z:60,r:24, // le Rond des Spores — sud-est de la Fange
+  packs:[
+   {type:'mycon',lvl:22,n:[3,5]},{type:'mycon',lvl:23,n:[3,5]},
+   {type:'mycon_rouge',lvl:26,n:[2,4]},{type:'mycon_rouge',lvl:27,n:[2,3]},
+   {type:'mycomage',lvl:29,n:[2,3]},
+   {type:'mycon_noir',lvl:31,n:[2,3],elite:1},
+   {type:'patriarche',lvl:34,n:[1,1],elite:1}]},
+ {id:'taniere',x:-96,z:246,r:20, // la Tanière — nord-ouest de la Lande
+  packs:[
+   {type:'loup',lvl:8,n:[3,5]},{type:'loup',lvl:10,n:[3,5]},
+   {type:'cerf',lvl:7,n:[2,4]},{type:'loup',lvl:12,n:[2,4]},
+   {type:'loup',lvl:14,n:[2,3],elite:1}]},
+ {id:'meute_pendue',x:-268,z:-130,r:18, // les loups noirs de la Forêt
+  packs:[
+   {type:'loup_noir',lvl:46,n:[3,4]},{type:'loup_noir',lvl:49,n:[2,4]},
+   {type:'loup_noir',lvl:52,n:[2,3],elite:1}]},
+ {id:'meute_cendre',x:150,z:-300,r:18, // les loups cendrés des Crêtes
+  packs:[
+   {type:'loup_cendre',lvl:62,n:[3,4]},{type:'loup_cendre',lvl:65,n:[2,4]},
+   {type:'loup_cendre',lvl:68,n:[2,3],elite:1}]}];
 /* zones interdites : villages, sites de quêtes, arènes (FLATS du terrain) + marge */
 const SPAWN_EXCL=[
  {x:0,z:-30,r:78},{x:0,z:180,r:36},{x:105,z:225,r:33},
@@ -55,6 +78,19 @@ function genSpawnData(seed){
   const rng=spawnRng(seed||SPAWN_SEED);
   const out=SPAWN_FIXED.map(sd=>({...sd}));
   const hyp=(ax,az,bx,bz)=>Math.hypot(ax-bx,az-bz);
+  /* sites d'abord : les packs de zone garderont leurs distances (22 u) */
+  for(const st of SPAWN_SITES){
+    for(const pk of st.packs){
+      let x=st.x,z=st.z;
+      for(let k=0;k<80;k++){
+        const a=rng()*Math.PI*2,rad=Math.sqrt(rng())*st.r;
+        const tx=Math.round(st.x+Math.cos(a)*rad),tz=Math.round(st.z+Math.sin(a)*rad);
+        if(!out.some(p=>hyp(tx,tz,p.x,p.z)<14)){x=tx;z=tz;break;}
+      }
+      const n=pk.n[0]+Math.floor(rng()*(pk.n[1]-pk.n[0]+1));
+      out.push({type:pk.type,lvl:pk.lvl,x,z,n,r:5,elite:pk.elite||0,site:st.id});
+    }
+  }
   for(const zn of SPAWN_ZONES){
     /* niveau ∝ distance à la capitale (0,-30) : le fond de zone est plus dur */
     let dMin=1e9,dMax=0;
@@ -77,12 +113,15 @@ function genSpawnData(seed){
       const lvl=Math.max(1,Math.round(zn.lvl[0]+(zn.lvl[1]-zn.lvl[0])*t01+(rng()*2-1)));
       const nn=SPAWN_PACK_N[type]||SPAWN_PACK_N.default;
       const n=nn[0]+Math.floor(rng()*(nn[1]-nn[0]+1));
+      /* ~8% de packs élites : plus rares, plus durs, meilleur butin */
+      const elite=rng()<0.08?1:0;
       /* packs resserrés (6-9 u) : un groupe se lit comme un groupe */
-      out.push({type,lvl,x,z,n,r:Math.round(6+rng()*3)});
+      out.push({type,lvl:lvl+(elite?2:0),x,z,n:elite?Math.max(nn[0],n-1):n,
+        r:Math.round(6+rng()*3),elite});
       placed++;
     }
   }
   return out;
 }
 if(typeof module!=='undefined'&&module.exports)
-  module.exports={SPAWN_SEED,genSpawnData,SPAWN_ZONES,SPAWN_FIXED};
+  module.exports={SPAWN_SEED,genSpawnData,SPAWN_ZONES,SPAWN_FIXED,SPAWN_SITES};

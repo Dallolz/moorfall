@@ -27,12 +27,14 @@ export function createMobs() {
   const packs = SPAWN_DATA.map((sd, pi) => {
     for (let i = 0; i < sd.n; i++) {
       const boss = BOSSES.has(sd.type)
+      const elite = !boss && sd.elite ? 1 : 0
+      const mhp = Math.round(eHp(sd.lvl, boss) * (elite ? 1.7 : 1))
       const hx = sd.x + (Math.random() * 2 - 1) * sd.r
       const hz = sd.z + (Math.random() * 2 - 1) * sd.r
       enemies.push({
-        id: 'e' + enemies.length, pack: pi, type: sd.type, lvl: sd.lvl, boss,
+        id: 'e' + enemies.length, pack: pi, type: sd.type, lvl: sd.lvl, boss, elite,
         hx, hz, x: hx, z: hz, f: 0, st: 'idle',
-        maxHp: eHp(sd.lvl, boss), hp: eHp(sd.lvl, boss),
+        maxHp: mhp, hp: mhp,
         alive: true, respawnT: 0, damagers: new Set(),
       })
     }
@@ -89,10 +91,12 @@ export function createMobs() {
       for (const e of enemies) {
         if (!e.alive) continue
         if (Math.hypot(e.x - x, e.z - z) > VIEW_RANGE) continue
-        out.push({
+        const ent = {
           id: e.id, type: e.type, lvl: e.lvl, x: e.x, z: e.z, f: e.f,
           st: e.st, hp: e.hp, mhp: e.maxHp, hx: e.hx, hz: e.hz,
-        })
+        }
+        if (e.elite) ent.e = 1
+        out.push(ent)
       }
       return out
     },

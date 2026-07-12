@@ -429,7 +429,16 @@ function buildDecorGLB(){
    {f:'tree_pineTallD',n:64,s:[4.4,7.0],tint:0x606c52,col:0.7,zone:'cretes'},
    {f:'tree_thin_dark',n:54,s:[3.2,5.2],tint:0x5c5a48,col:0.6,zone:'lande'},
    {f:'tree_simple_dark',n:48,s:[3.0,5.0],tint:0x585443,col:0.6,zone:'lande'},
-   {f:'plant_bushDetailed',n:96,s:[1.6,3.0],tint:0x74806a}];
+   {f:'plant_bushDetailed',n:96,s:[1.6,3.0],tint:0x74806a},
+   /* le Rond des Spores : champignons géants, du comestible au cauchemar */
+   {f:'mushroom_tanTall',n:14,s:[4.5,9],tint:0xc0a8c8,site:{x:285,z:60,r:26}},
+   {f:'mushroom_redGroup',n:18,s:[2.5,5],tint:0xc89a90,site:{x:285,z:60,r:24}},
+   {f:'mushroom_tanGroup',n:14,s:[2,4],tint:0xb8ac92,site:{x:285,z:60,r:22}},
+   /* tanières : troncs couchés et pierres autour des meutes */
+   {f:'log_large',n:6,s:[2.2,3.4],tint:0x6a5c48,site:{x:-96,z:246,r:20}},
+   {f:'rock_largeC',n:5,s:[2.2,3.6],tint:0x8a887c,col:1.5,site:{x:-96,z:246,r:22}},
+   {f:'log_large',n:6,s:[2.2,3.4],tint:0x555040,site:{x:-268,z:-130,r:18}},
+   {f:'rock_largeA',n:5,s:[2.2,3.6],tint:0x787468,col:1.5,site:{x:150,z:-300,r:20}}];
   const dummy=new THREE.Object3D(),cc=new THREE.Color();
   P.forEach(p=>{
     _rigLoad(_MFA+'env/'+p.f+'.glb').then(g=>{
@@ -437,7 +446,9 @@ function buildDecorGLB(){
       const spots=[];
       for(let i=0;i<p.n*4&&spots.length<p.n;i++){
         let x,z;
-        if(zn){const a=rand(0,6.28),rr=Math.sqrt(Math.random())*zn.r*0.95;
+        if(p.site){const a=rand(0,6.28),rr=Math.sqrt(Math.random())*p.site.r;
+          x=p.site.x+Math.cos(a)*rr;z=p.site.z+Math.sin(a)*rr;}
+        else if(zn){const a=rand(0,6.28),rr=Math.sqrt(Math.random())*zn.r*0.95;
           x=zn.x+Math.cos(a)*rr;z=zn.z+Math.sin(a)*rr;}
         else{x=rand(-365,365);z=rand(-365,365);}
         if(dist2D({x,z},CAPITALE)<60||dist2D({x,z},MORFAILLE)<22)continue;
@@ -527,10 +538,10 @@ const sunAmb=new THREE.AmbientLight(0xcabf9e,0);scene.add(sunAmb);
 let LBASE=null,FOGC_N=new THREE.Color(0x222720),FOGC_J=new THREE.Color(0x474d44),
     LUNE_N=new THREE.Color(0x9aa4c8),LUNE_J=new THREE.Color(0xcabf9e);
 const wisps=[];
-[[225,90,0x9ab86a],[262,135,0x9ab86a],[-240,-60,0x8a94c8]].forEach(([x,z,c])=>{
+[[225,90,0x9ab86a],[262,135,0x9ab86a],[-240,-60,0x8a94c8],[285,60,0xb08ad8]].forEach(([x,z,c])=>{
   const l=new THREE.PointLight(c,0.9,10);l.position.set(x,1.2,z);scene.add(l);
   wisps.push({l,x,z,ph:rand(0,6)});});
-let luciole=0;
+let luciole=0,sporeT=0;
 function cycleTick(dt,now){
   if(LBASE===null)LBASE=lune.intensity;
   const f=0.5-0.5*Math.cos(((G.playTime+120)%480)/480*Math.PI*2); // 0 minuit → 1 midi (départ au matin)
@@ -549,6 +560,11 @@ function cycleTick(dt,now){
     if(luciole<=0){luciole=0.5;
       spawnPart(player.pos.x+rand(-14,14),rand(0.5,2),player.pos.z+rand(-14,14),1,
         {col:0xd8e29a,spd:0.2,up:0.3,grav:-0.25,drag:0.995,life:3});}}
+  // spores en suspension au Rond des Spores
+  if(dist2D(player.pos,{x:285,z:60})<42){sporeT-=dt;
+    if(sporeT<=0){sporeT=0.22;
+      spawnPart(player.pos.x+rand(-18,18),rand(0.4,3.5),player.pos.z+rand(-18,18),1,
+        {col:Math.random()<0.6?0xc09ad8:0x9ab86a,spd:0.25,up:0.15,grav:-0.35,drag:0.996,life:4});}}
 }
 /* ---------- barres de vie des ennemis (touche H) ---------- */
 function ensureBar(e){
@@ -572,8 +588,8 @@ function majBar(e,dLOD){
   e.bar.el.style.left=((v.x+1)/2*innerWidth)+'px';
   e.bar.el.style.top=((-v.y+1)/2*innerHeight)+'px';
   e.bar.f.style.width=(clamp(e.hp/e.maxHp,0,1)*100)+'%';
-  e.bar.lv.textContent=e.lvl;
-  e.bar.lv.style.color=lvlColor(e.lvl);
+  e.bar.lv.textContent=(e.elite?'★':'')+e.lvl;
+  e.bar.lv.style.color=e.elite?'#d8a03a':lvlColor(e.lvl);
 }
 /* ---------- gisements : os anciens & cendre vive ---------- */
 const nodes=[];

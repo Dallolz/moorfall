@@ -370,9 +370,11 @@ function equipSpell(id,slot){
 /* ---------- butin (tables graduelles) ---------- */
 function dropLoot(e){
   if(G.lvl>=10&&Math.random()<0.003){spawnLoot(genRelique(Math.max(e.lvl,G.lvl)),e.pos.x,e.pos.z);return;}
-  const chance=e.def.boss?1:0.16;
+  const chance=e.def.boss?1:e.elite?0.6:0.16;
   if(Math.random()>chance)return;
-  spawnLoot(genItem(e.lvl,e.def.boss),e.pos.x,e.pos.z);
+  /* élite : jamais de blanc — la rareté du pack se lit dans le butin */
+  const it=e.elite?genItem(e.lvl,false,{rar:Math.max(rarRoll(e.lvl),1)}):genItem(e.lvl,e.def.boss);
+  spawnLoot(it,e.pos.x,e.pos.z);
 }
 function rafraichirPanneau(){
   if(panOuvert==='inv')ouvrirInventaire();

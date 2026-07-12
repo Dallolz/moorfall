@@ -28,6 +28,10 @@ function initMonde(){
   for(let i=0;i<30;i++)tasOs(90+rand(-97,97),-255+rand(-82,75));
   for(let i=0;i<12;i++)pilier(90+rand(-75,75),-255+rand(-67,67),rand(4,9),rand(0.7,1.1));
   for(let i=0;i<40;i++)rocher(rand(-365,365),rand(-365,365)*0.4-180,rand(0.5,1.4));
+  /* tanières : os des proies autour des meutes */
+  for(let i=0;i<9;i++)tasOs(-96+rand(-15,15),246+rand(-15,15));
+  for(let i=0;i<7;i++)tasOs(-268+rand(-13,13),-130+rand(-13,13));
+  for(let i=0;i<7;i++)tasOs(150+rand(-14,14),-300+rand(-14,14));
   for(let i=0;i<20;i++){
     const m=new THREE.Mesh(new THREE.PlaneGeometry(rand(14,36),rand(9,18)),
       new THREE.MeshBasicMaterial({color:0x39413a,transparent:true,opacity:0.05,depthWrite:false}));
@@ -352,7 +356,7 @@ function mpMobsReset(){
 }
 function mpMobSpawn(u){
   if(!u||!u.id||MP.mobs.has(u.id)||!ENEMY_DEF[u.type])return;
-  const e=spawnEnemy(u.type,u.lvl,u.x,u.z,null);
+  const e=spawnEnemy(u.type,u.lvl,u.x,u.z,null,u.e);
   e.sid=u.id;e.owned=MP.owned.has(u.id);
   e.hp=u.hp;if(u.mhp)e.maxHp=u.mhp;
   e.home={x:u.hx!==undefined?u.hx:u.x,z:u.hz!==undefined?u.hz:u.z};

@@ -306,6 +306,7 @@ function tick(now){
     if(e.sid&&!e.owned){mpMobNetTick(e,dt);return;}
     if(e.state==='grabbed'){e.mesh.position.copy(e.pos);return;}
     e.t+=dt;e.twitch+=dt;e.slowT=Math.max(0,e.slowT-dt);
+    e.rageT=Math.max(0,(e.rageT||0)-dt);
     e.spCd=Math.max(0,(e.spCd===undefined?rand(1,3):e.spCd)-dt);
     if(e.bk)for(const bkK in e.bk)e.bk[bkK]=Math.max(0,e.bk[bkK]-dt);
     if(e.dot){e.dot.tick-=dt;e.dot.t-=dt;
@@ -386,13 +387,18 @@ function tick(now){
         if(e.hp<e.maxHp)e.hp=Math.min(e.maxHp,e.hp+e.maxHp*dt*0.35);}
     }else if(e.state==='idle'){
       e.aggroCd=Math.max(0,(e.aggroCd||0)-dt);
-      if(e.aggroCd<=0&&dP<e.def.aggro&&!player.dead&&!G.flying&&!safe&&!enSecurite(e.pos))e.state='chase';
+      if(e.def.craintif){ // bête craintive : elle fuit, elle n'attaque que blessée
+        if(dP<9&&!player.dead){
+          e.wander=V3(e.pos.x+(e.pos.x-player.pos.x)*2,0,e.pos.z+(e.pos.z-player.pos.z)*2);e.t=0;}
+      }
+      else if(e.aggroCd<=0&&dP<e.def.aggro&&!player.dead&&!G.flying&&!safe&&!enSecurite(e.pos))e.state='chase';
       else if(e.aggroCd<=0&&e.owned&&mpNearestRemote(e,e.def.aggro))e.state='chase';
-      else if(e.t>3){e.t=0;
+      if(e.state==='idle'&&e.t>3){e.t=0;
         const wr=e.spawner?Math.max(4,e.spawner.r):5;
         e.wander=Math.random()<0.75?V3(e.home.x+rand(-wr,wr),0,e.home.z+rand(-wr,wr)):null;}
       if(e.wander){const dx=e.wander.x-e.pos.x,dz=e.wander.z-e.pos.z,d=Math.hypot(dx,dz);
-        if(d>0.5){e.vel.x=dx/d*vitesse*0.35;e.vel.z=dz/d*vitesse*0.35;
+        const fuite=e.def.craintif&&dP<14?0.95:0.35;
+        if(d>0.5){e.vel.x=dx/d*vitesse*fuite;e.vel.z=dz/d*vitesse*fuite;
           e.mesh.rotation.y=Math.atan2(dx,dz);}else{e.vel.x=e.vel.z=0;e.wander=null;}}
       else{e.vel.x*=Math.pow(0.02,dt);e.vel.z*=Math.pow(0.02,dt);}
     }else if(e.state==='chase'){
@@ -402,7 +408,9 @@ function tick(now){
       allies.forEach(al=>{const d2=dist2D(e.pos,al.pos);if(d2<dc*0.7){cible=al;dc=d2;}});
       if(e.owned){const nr=mpNearestRemote(e,dc*0.7);
         if(nr){cible={remote:nr.r,pos:{x:nr.r.cur.x,z:nr.r.cur.z}};dc=nr.d;}}
-      if(!cible||dc>e.def.aggro*2.2||dist2D(e.pos,e.home)>LEASH_E){
+      /* rageT : venir d'être frappé maintient la poursuite au-delà de la
+         portée d'aggro (sinon un archer décroche au premier recul) */
+      if(!cible||(dc>e.def.aggro*2.2&&!(e.rageT>0))||dist2D(e.pos,e.home)>LEASH_E){
         e.state='retour';e.vel.x=e.vel.z=0;e.cible=null;}
       else{
         e.cible=cible;
