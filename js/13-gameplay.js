@@ -150,7 +150,7 @@ function dmgLight(e,dmg,dir,f,slow){
   if(e.hp<=0)tueEnemy(e,dir||V3(0,0,1),f||150);
 }
 /* ---------- boucle principale ---------- */
-let last=performance.now(),phase=0,uiT=0,saveT=0,curZone=null,moteT=0,stepT=0;
+let last=performance.now(),phase=0,uiT=0,saveT=0,curZone=null,moteT=0,stepT=0,fumT=0;
 function tick(now){
   requestAnimationFrame(tick);
   let dt=Math.min(0.05,(now-last)/1000);last=now;
@@ -592,6 +592,26 @@ function tick(now){
         animeHumanoide(c.mesh,phase+c.phase,1.2,null);}else c.wander=null;}});
   torches.forEach(t=>{t.l.intensity=t.base+Math.sin(now/60+t.l.position.x)*0.35+rand(-0.1,0.1);
     t.flamme.scale.setScalar(0.9+rand(0,0.3));});
+  /* gardes en patrouille */
+  patrouilles.forEach(p=>{
+    if(dist2D(p.mesh.position,player.pos)>80){p.mesh.visible=false;return;}
+    p.mesh.visible=true;
+    const pt=p.pts[p.i];
+    const dx=pt.x-p.mesh.position.x,dz=pt.z-p.mesh.position.z,d=Math.hypot(dx,dz);
+    if(d<0.6){p.i=(p.i+1)%p.pts.length;animeHumanoide(p.mesh,phase+p.ph,0,null);return;}
+    p.mesh.position.x+=dx/d*1.7*dt;p.mesh.position.z+=dz/d*1.7*dt;
+    p.mesh.position.y=terrainH(p.mesh.position.x,p.mesh.position.z);
+    p.mesh.rotation.y=Math.atan2(dx,dz);
+    animeHumanoide(p.mesh,phase+p.ph,1.7,null);});
+  /* fumées de cheminées et feux de camp */
+  fumT-=dt;
+  if(fumT<=0){fumT=0.4;
+    cheminees.forEach(c=>{if(dist2D(c,player.pos)>70)return;
+      spawnPart(c.x,c.y,c.z,1,{col:0x50504a,spd:0.15,up:0.75,grav:-0.28,drag:0.985,life:2.8});});
+    feux.forEach(f=>{if(dist2D(f,player.pos)>60)return;
+      spawnPart(f.x,f.y+0.6,f.z,1,{col:Math.random()<0.5?0xd8862e:0x6a5a48,spd:0.25,up:1.1,grav:-0.4,drag:0.97,life:1.4});});}
+  feux.forEach(f=>{f.flamme.scale.set(0.85+rand(0,0.3),0.8+rand(0,0.45),0.85+rand(0,0.3));
+    f.lueur.material.opacity=0.13+rand(0,0.07);});
   brumes.forEach(b=>{b.position.x+=b.userData.v*dt;if(b.position.x>365)b.position.x=-365;});
   pendus.forEach(p=>{p.rotation.z=Math.sin(now/900+p.userData.ph)*0.14;});
   banniers.forEach((b,i)=>{b.rotation.x=Math.sin(now/700+i)*0.08;});

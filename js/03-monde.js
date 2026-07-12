@@ -146,26 +146,116 @@ function pilier(x,z,h,ray=0.6){
   p.position.set(x,terrainH(x,z)+h/2,z);p.rotation.z=rand(-0.06,0.06);p.castShadow=true;scene.add(p);
   obstacles.push({x,z,r:ray+0.2});
 }
+/* ---------- mobilier de ville et de camp (v28) ---------- */
+const cheminees=[],feux=[],patrouilles=[];
+function maison(x,z,rot,w=5,d=4.4,h=3){
+  const g=new THREE.Group();const ty=terrainH(x,z);
+  const murs=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(0x37342c));
+  murs.position.y=h/2;murs.castShadow=murs.receiveShadow=true;g.add(murs);
+  const sous=new THREE.Mesh(new THREE.BoxGeometry(w+0.3,0.5,d+0.3),mat(0x2a2a26));
+  sous.position.y=0.25;g.add(sous);
+  [-1,1].forEach(s=>{const pan=new THREE.Mesh(new THREE.BoxGeometry(w+0.9,0.16,d*0.66),mat(0x1a160f));
+    pan.position.set(0,h+d*0.17,s*d*0.24);pan.rotation.x=-s*0.6;pan.castShadow=true;g.add(pan);});
+  const porte=new THREE.Mesh(new THREE.BoxGeometry(0.9,1.7,0.08),mat(0x14100a));
+  porte.position.set(w*0.18,0.85,d/2+0.05);g.add(porte);
+  const fen=new THREE.Mesh(new THREE.PlaneGeometry(0.72,0.6),
+    new THREE.MeshBasicMaterial({color:0xc9903a}));
+  fen.position.set(-w*0.24,1.7,d/2+0.06);g.add(fen);
+  const chem=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.3,0.5),mat(0x2e2e28));
+  chem.position.set(-w*0.32,h+0.8,-d*0.18);g.add(chem);
+  g.position.set(x,ty,z);g.rotation.y=rot;scene.add(g);
+  obstacles.push({x,z,r:Math.max(w,d)*0.64});
+  const co=Math.cos(rot),si=Math.sin(rot),ox=-w*0.32,oz=-d*0.18;
+  cheminees.push({x:x+ox*co+oz*si,y:ty+h+1.5,z:z-ox*si+oz*co});
+  return g;
+}
+function caisse(x,z,rot=0,s=0.8){
+  const c=new THREE.Mesh(_hgeo('caisse',()=>new THREE.BoxGeometry(1,1,1)),_hmat(0x4a3d28,0.95));
+  c.scale.setScalar(s);c.position.set(x,terrainH(x,z)+s/2,z);c.rotation.y=rot;c.castShadow=true;scene.add(c);
+  obstacles.push({x,z,r:s*0.7});
+}
+function tonneau(x,z){
+  const t=new THREE.Mesh(_hgeo('tonneau',()=>new THREE.CylinderGeometry(0.34,0.38,0.9,9)),_hmat(0x3c3222,0.9));
+  t.position.set(x,terrainH(x,z)+0.45,z);t.castShadow=true;scene.add(t);
+  obstacles.push({x,z,r:0.45});
+}
+function puits(x,z){
+  const ty=terrainH(x,z);
+  const mur=new THREE.Mesh(new THREE.CylinderGeometry(0.95,1.05,0.9,10),mat(0x3a3a34));
+  mur.position.set(x,ty+0.45,z);mur.castShadow=true;scene.add(mur);
+  const eau=new THREE.Mesh(new THREE.CircleGeometry(0.8,10),
+    new THREE.MeshStandardMaterial({color:0x101c18,roughness:0.15,metalness:0.4}));
+  eau.rotation.x=-Math.PI/2;eau.position.set(x,ty+0.7,z);scene.add(eau);
+  [-1,1].forEach(s=>{const pt=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,2,5),mat(0x241a10));
+    pt.position.set(x+s*0.85,ty+1.4,z);scene.add(pt);});
+  const toit=new THREE.Mesh(new THREE.ConeGeometry(1.3,0.8,4),mat(0x17130c));
+  toit.position.set(x,ty+2.7,z);toit.rotation.y=Math.PI/4;scene.add(toit);
+  obstacles.push({x,z,r:1.2});
+}
+function charrette(x,z,rot=0){
+  const g=new THREE.Group();
+  const caisseC=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.5,2.2),mat(0x3c3222));
+  caisseC.position.y=0.75;g.add(caisseC);
+  [-1,1].forEach(s=>{const roue=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.1,10),mat(0x241a10));
+    roue.rotation.z=Math.PI/2;roue.position.set(s*0.8,0.45,0.3);g.add(roue);});
+  const brancard=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.08,1.6),mat(0x241a10));
+  brancard.position.set(0.3,0.5,-1.7);brancard.rotation.x=0.3;g.add(brancard);
+  g.position.set(x,terrainH(x,z),z);g.rotation.y=rot;g.rotation.z=-0.05;scene.add(g);
+  obstacles.push({x,z,r:1.2});
+}
+/* feu de camp : émissif seulement — pas de PointLight, l'éclairage forward
+   de r128 plie déjà sous les torches existantes */
+function feuCamp(x,z){
+  const ty=terrainH(x,z);
+  for(let i=0;i<5;i++){const a=i/5*6.28;
+    const p=new THREE.Mesh(_hgeo('pierre',()=>new THREE.DodecahedronGeometry(0.16,0)),_hmat(0x3a3a34));
+    p.position.set(x+Math.cos(a)*0.55,ty+0.1,z+Math.sin(a)*0.55);scene.add(p);}
+  for(let i=0;i<3;i++){const b=new THREE.Mesh(_hgeo('buche',()=>new THREE.CylinderGeometry(0.06,0.07,0.8,5)),_hmat(0x241a10));
+    b.position.set(x,ty+0.16,z);b.rotation.set(1.2,i*2.1,0);scene.add(b);}
+  const flamme=new THREE.Mesh(_hgeo('flammeC',()=>new THREE.ConeGeometry(0.22,0.55,6)),_hbasic(0xd8862e));
+  flamme.position.set(x,ty+0.45,z);scene.add(flamme);
+  const lueur=new THREE.Mesh(new THREE.CircleGeometry(1.5,14),
+    new THREE.MeshBasicMaterial({color:0xc9702a,transparent:true,opacity:0.16,depthWrite:false}));
+  lueur.rotation.x=-Math.PI/2;lueur.position.set(x,ty+0.05,z);scene.add(lueur);
+  feux.push({x,y:ty,z,flamme,lueur});
+}
+function tente(x,z,rot=0){
+  const t=new THREE.Mesh(new THREE.ConeGeometry(1.9,2.3,4),mat(0x342e22,0.98));
+  t.position.set(x,terrainH(x,z)+1,z);t.rotation.y=rot;t.castShadow=true;scene.add(t);
+  obstacles.push({x,z,r:1.5});
+}
+function campement(x,z){
+  const a=rand(0,6.28);
+  tente(x+Math.cos(a)*3.2,z+Math.sin(a)*3.2,rand(0,6.28));
+  feuCamp(x+Math.cos(a+2.4)*2.4,z+Math.sin(a+2.4)*2.4);
+  caisse(x+Math.cos(a+4.2)*2.6,z+Math.sin(a+4.2)*2.6,rand(0,1.5),0.7);
+  tonneau(x+Math.cos(a+4.9)*3,z+Math.sin(a+4.9)*3);
+}
+function garde(x,z,pts){
+  const m=humanoide({peau:0x8a7a62,habit:0x3a3e46,arme:'marteau'});
+  m.position.set(x,terrainH(x,z),z);scene.add(m);
+  patrouilles.push({mesh:m,pts,i:0,ph:rand(0,6)});
+}
 
 /* ---------- la capitale Valcierge ---------- */
 function construireCapitale(){
-  const cx=CAPITALE.x,cz=CAPITALE.z,R=26;
+  const cx=CAPITALE.x,cz=CAPITALE.z,R=38;
   // dalles de la place
-  const place=new THREE.Mesh(new THREE.CylinderGeometry(R-1,R-1,0.25,36),mat(0x26251f));
+  const place=new THREE.Mesh(new THREE.CylinderGeometry(R-1,R-1,0.25,42),mat(0x26251f));
   place.position.set(cx,0.12,cz);place.receiveShadow=true;scene.add(place);
   // remparts : segments avec porte au sud
-  const SEG=18;
+  const SEG=25;
   for(let i=0;i<SEG;i++){
     const a=i/SEG*Math.PI*2;
-    if(a>Math.PI/2-0.32&&a<Math.PI/2+0.32)continue; // porte sud (+z)
+    if(a>Math.PI/2-0.24&&a<Math.PI/2+0.24)continue; // porte sud (+z)
     const wx=cx+Math.cos(a)*R,wz=cz+Math.sin(a)*R;
-    const w=new THREE.Mesh(new THREE.BoxGeometry(9.6,6,1.6),mat(0x3a3a34));
+    const w=new THREE.Mesh(new THREE.BoxGeometry(9.9,6,1.6),mat(0x3a3a34));
     w.position.set(wx,3,wz);w.rotation.y=-a+Math.PI/2;w.castShadow=true;w.receiveShadow=true;scene.add(w);
-    const cren=new THREE.Mesh(new THREE.BoxGeometry(9.6,0.7,2),mat(0x2e2e28));
+    const cren=new THREE.Mesh(new THREE.BoxGeometry(9.9,0.7,2),mat(0x2e2e28));
     cren.position.set(wx,6.3,wz);cren.rotation.y=-a+Math.PI/2;scene.add(cren);
     obstacles.push({x:wx,z:wz,r:2.6});
-    obstacles.push({x:cx+Math.cos(a+0.11)*R,z:cz+Math.sin(a+0.11)*R,r:2.6});
-    obstacles.push({x:cx+Math.cos(a-0.11)*R,z:cz+Math.sin(a-0.11)*R,r:2.6});
+    obstacles.push({x:cx+Math.cos(a+0.08)*R,z:cz+Math.sin(a+0.08)*R,r:2.6});
+    obstacles.push({x:cx+Math.cos(a-0.08)*R,z:cz+Math.sin(a-0.08)*R,r:2.6});
   }
   // tours
   [[0.9],[2.2],[4.0],[5.4]].forEach(([a])=>{
@@ -183,8 +273,22 @@ function construireCapitale(){
   const linteau=new THREE.Mesh(new THREE.BoxGeometry(10.5,1.4,1.6),mat(0x2e2e28));
   linteau.position.set(cx,7.4,cz+R);scene.add(linteau);
   torche(cx-3,cz+R+1.5,2,16);torche(cx+3,cz+R+1.5,2,16);
+  /* quartiers d'habitation : deux arcs de maisons le long des remparts,
+     fenêtres allumées, cheminées qui fument */
+  [[3.7,0.55],[4.35,0.5],[5.0,0.5],[5.65,0.5],[0.35,0.55],[2.45,0.5],[2.95,0.45],[1.05,0.5]].forEach(([a],i)=>{
+    const hx=cx+Math.cos(a)*(R-8.5),hz=cz+Math.sin(a)*(R-8.5);
+    maison(hx,hz,-a-Math.PI/2,4.6+(i%3)*0.7,4.2+(i%2)*0.6,2.8+(i%3)*0.3);});
+  // ruelles : caisses, tonneaux, charrettes
+  caisse(cx-13,cz+13,0.4);caisse(cx-12.2,cz+13.8,1.1,0.6);tonneau(cx-13.9,cz+12.6);
+  caisse(cx+15,cz+9,0.8);tonneau(cx+15.8,cz+9.6);tonneau(cx+16.2,cz+8.7);
+  charrette(cx+8,cz+18,2.2);charrette(cx-18,cz-2,1.0);
+  puits(cx-9,cz+9);
+  // gardes en patrouille sur la place
+  garde(cx-12,cz+10,[{x:cx-14,z:cz+12},{x:cx+14,z:cz+12},{x:cx+16,z:cz-12},{x:cx-16,z:cz-12}]);
+  garde(cx+10,cz-14,[{x:cx+16,z:cz-12},{x:cx+14,z:cz+12},{x:cx-14,z:cz+12},{x:cx-16,z:cz-12}]);
+  garde(cx,cz+24,[{x:cx-6,z:cz+30},{x:cx+6,z:cz+30},{x:cx+6,z:cz+20},{x:cx-6,z:cz+20}]);
   // cathédrale du Cierge (nord de la place)
-  const catX=cx,catZ=cz-14;
+  const catX=cx,catZ=cz-20;
   const nef=new THREE.Mesh(new THREE.BoxGeometry(11,8,15),mat(0x3c3a32));
   nef.position.set(catX,4,catZ);nef.castShadow=true;scene.add(nef);
   const toitN=new THREE.Mesh(new THREE.ConeGeometry(8.5,5,4),mat(0x1a1812));
@@ -215,13 +319,18 @@ function construireCapitale(){
   cierge.position.set(cx,3.4,cz+2);scene.add(cierge);
   const lF=new THREE.PointLight(0xd8a84a,1.6,15);lF.position.set(cx,3.6,cz+2);scene.add(lF);
   obstacles.push({x:cx,z:cz+2,r:3});
-  // étals du marché
-  [[-8,6,0.4],[-11,1,1.2],[8,7,-0.5]].forEach(([ox,oz,rot])=>{
+  // étals du marché — une vraie halle en arc autour de la fontaine
+  [[-8,6,0.4,0x4a2c22],[-11,1,1.2,0x2c3a34],[8,7,-0.5,0x4a2c22],
+   [11,2,-1.1,0x3a3050],[-6,12,0.2,0x2c3a34],[6,13,-0.3,0x4a3a22],[12,-4,-1.4,0x4a2c22]].forEach(([ox,oz,rot,tissu])=>{
     const table=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,1.2),mat(0x2e2418));
     table.position.set(cx+ox,0.45,cz+oz);table.rotation.y=rot;scene.add(table);
     const auvent=new THREE.Mesh(new THREE.PlaneGeometry(3,1.8),
-      new THREE.MeshStandardMaterial({color:0x4a2c22,side:THREE.DoubleSide,roughness:1}));
+      new THREE.MeshStandardMaterial({color:tissu,side:THREE.DoubleSide,roughness:1}));
     auvent.position.set(cx+ox,2.1,cz+oz);auvent.rotation.set(-0.4,rot,0);scene.add(auvent);
+    const marchandise=new THREE.Mesh(_hgeo('marchandise',()=>new THREE.BoxGeometry(0.5,0.3,0.4)),
+      _hmat([0x6a5a3a,0x5a6a4a,0x6a4a3a][Math.floor(Math.random()*3)],0.95));
+    marchandise.position.set(cx+ox+rand(-0.6,0.6),1.05,cz+oz+rand(-0.2,0.2));
+    marchandise.rotation.y=rand(0,1);scene.add(marchandise);
     obstacles.push({x:cx+ox,z:cz+oz,r:1.5});});
   // bannières le long des murs intérieurs
   for(let i=0;i<8;i++){
@@ -233,9 +342,9 @@ function construireCapitale(){
       new THREE.MeshStandardMaterial({color:0x4a1e18,side:THREE.DoubleSide,roughness:1}));
     ban.position.set(bx,3.6,bz);ban.rotation.y=a;scene.add(ban);banniers.push(ban);}
   // torches de rue
-  torche(cx-6,cz+10);torche(cx+6,cz+10);torche(cx-10,cz-4);torche(cx+10,cz-4);torche(cx,cz+16,1.8,14);
+  torche(cx-6,cz+10);torche(cx+6,cz+10);torche(cx-10,cz-4);torche(cx+10,cz-4);torche(cx,cz+22,1.8,14);
   // lampadaires braseros
-  [[-14,-8],[14,-8],[-14,10],[14,10]].forEach(([ox,oz])=>torche(cx+ox,cz+oz,1.6,13));
+  [[-20,-12],[20,-12],[-20,14],[20,14]].forEach(([ox,oz])=>torche(cx+ox,cz+oz,1.6,13));
 }
 const banniers=[];
 

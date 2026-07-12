@@ -9,8 +9,26 @@ function initMonde(){
     const m=new THREE.Mesh(new THREE.ConeGeometry(rand(40,75),rand(45,100),5),
       new THREE.MeshBasicMaterial({color:0x0d100c}));
     m.position.set(Math.cos(a)*r,0,Math.sin(a)*r);scene.add(m);}
+  /* Morfaille, village de départ : palissade, puits, charrette, feu — un
+     hameau qui tient, pas trois huttes perdues */
   hutte(-6,184,0.4);hutte(6,185,-0.5);hutte(0,172,3.1);
+  hutte(-15,177,1.1);hutte(14,176,-0.7);hutte(10,191,2.4);
   torche(-2.5,181);torche(3,180.5);torche(-1,175.5);torche(5,174);
+  puits(-3,189);charrette(9,181,0.6);feuCamp(1,178.5);
+  caisse(-7,180,0.3);tonneau(-7.8,180.7);caisse(7.5,187.5,1.1,0.7);
+  /* palissade r21, deux passages : route de Valcierge (sud, -z) et lande (nord) */
+  const angDiff=(a,t)=>{const d=Math.abs(a-t)%(Math.PI*2);return Math.min(d,Math.PI*2-d);};
+  for(let a=0;a<Math.PI*2;a+=0.15){
+    if(angDiff(a,Math.PI*1.5)<0.17||angDiff(a,Math.PI*0.5)<0.15)continue;
+    const px=Math.cos(a)*21,pz=180+Math.sin(a)*21;
+    const po=new THREE.Mesh(_hgeo('palis',()=>{
+      const g2=new THREE.CylinderGeometry(0.14,0.18,3,5);g2.translate(0,1.5,0);return g2;}),_hmat(0x2b2216));
+    po.position.set(px,terrainH(px,pz)-0.15,pz);po.scale.y=0.85+((Math.round(a*40)%13)/13)*0.3;
+    po.rotation.set(rand(-0.05,0.05),0,rand(-0.05,0.05));scene.add(po);}
+  for(let a=0;a<Math.PI*2;a+=0.45){
+    if(angDiff(a,Math.PI*1.5)<0.28||angDiff(a,Math.PI*0.5)<0.26)continue;
+    obstacles.push({x:Math.cos(a)*21,z:180+Math.sin(a)*21,r:1.7});}
+  for(let i=0;i<7;i++)citoyen(rand(-11,11),180+rand(-8,9));
   for(let i=0;i<9;i++){const a=i/9*6.28;pilier(RUINES.x+Math.cos(a)*8,RUINES.z+Math.sin(a)*8,rand(1.5,5));}
   const dalle=new THREE.Mesh(new THREE.CylinderGeometry(9,9,0.3,24),mat(0x2c2f29));
   dalle.position.set(RUINES.x,0.15,RUINES.z);dalle.receiveShadow=true;scene.add(dalle);
@@ -54,9 +72,12 @@ function initMonde(){
   npc('ashka','Veuve Ashka','Elle vit là où les arbres portent',-172,-38,0x9a8a78,0x2a2a32);
   npc('ossian','Frère Ossian','Il prie au pied des grands os',52,-195,0x9a927c,0x38342a);
   torche(158,70,1.6);torche(-172,-36,1.6);torche(52,-193,1.6);
+  /* chaque camp de quêtes est un vrai bivouac : tente, feu, caisses */
+  [[158,68],[-172,-38],[52,-195],[-45,225],[255,42],[-210,-87],[120,-222]].forEach(([qx,qz])=>campement(qx,qz));
+  citoyen(160,65);citoyen(-175,-41);citoyen(55,-198);
   const g1=humanoide({peau:0x8a7a62,habit:0x3a3e46,arme:'marteau'});g1.position.set(-2.5,0,-5.5);scene.add(g1);
   const g2=humanoide({peau:0x8a7a62,habit:0x3a3e46,arme:'marteau'});g2.position.set(2.5,0,-5.5);g2.rotation.y=Math.PI;scene.add(g2);
-  for(let i=0;i<8;i++)citoyen(rand(-12,12),-30+rand(-8,14));
+  for(let i=0;i<22;i++)citoyen(rand(-22,22),-30+rand(-20,24));
   buildReliefs();
   buildSecret();
   buildNature();
